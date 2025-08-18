@@ -1,5 +1,7 @@
 """A script for doing AI code reviews using Ollama"""
 
+#pylint: disable=invalid-name
+
 import json
 import textwrap
 import time
@@ -26,6 +28,7 @@ allowed_ollama_models = [OLLAMA_DEFAULT_MODEL]
 # ------------------------------
 
 def get_json_response_headers():
+    """Returns a dict of the default Github api headers"""
     return {
         "Authorization": f"Bearer {github_token}",
         "Accept": "application/vnd.github.raw+json",
@@ -33,37 +36,23 @@ def get_json_response_headers():
         }
 
 def do_github_api_request_json(url):
+    """Does a Github api request, returns the response json"""
     r = requests.get(url, headers=get_json_response_headers())
     r.raise_for_status()
     return r.json()
 
 def do_github_api_request_raw(url, headers):
+    """Does a Github api request, returns the raw text"""
     r = requests.get(url, headers=headers)
     r.raise_for_status()
     return r.text
 
 def get_pull_requests(owner, repo):
+    """Requests all open pull requests for the specified owner's repo"""
     url = f"{API_BASE}/repos/{owner}/{repo}/pulls?state=open"
     r = requests.get(url, headers=get_json_response_headers())
     r.raise_for_status()
     return r.json()
-
-
-def get_pull_request_comments(owner, repo, pr_number):
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
-    r = requests.get(url, headers=get_json_response_headers())
-    r.raise_for_status()
-    return r.json()
-
-
-def get_pull_request_diff(owner, repo, pr_number):
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}"
-    diff_headers = get_json_response_headers()
-    diff_headers["Accept"] = "application/vnd.github.diff"
-    r = requests.get(url, headers=diff_headers)
-    r.raise_for_status()
-    return r.text
-
 
 def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
@@ -125,7 +114,7 @@ def read_config():
                                 "entries in the repo-list.")
             repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
 
-        if repo_list.count == 0:
+        if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " \
                             "list of objects with a name and owner.")
 
