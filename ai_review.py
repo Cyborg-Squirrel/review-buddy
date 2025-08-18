@@ -37,20 +37,20 @@ def get_json_response_headers():
 
 def do_github_api_request_json(url):
     """Does a Github api request, returns the response json"""
-    r = requests.get(url, headers=get_json_response_headers())
+    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
     r.raise_for_status()
     return r.json()
 
 def do_github_api_request_raw(url, headers):
     """Does a Github api request, returns the raw text"""
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=5)
     r.raise_for_status()
     return r.text
 
 def get_pull_requests(owner, repo):
     """Requests all open pull requests for the specified owner's repo"""
     url = f"{API_BASE}/repos/{owner}/{repo}/pulls?state=open"
-    r = requests.get(url, headers=get_json_response_headers())
+    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
     r.raise_for_status()
     return r.json()
 
@@ -71,7 +71,7 @@ def ask_ollama_for_review(title, diff_text):
         "stream": False
     }
 
-    r = requests.post(ollama_url, json=payload)
+    r = requests.post(ollama_url, json=payload, timeout=60)
     r.raise_for_status()
     result = r.json()
     return result.get("response", "").strip()
