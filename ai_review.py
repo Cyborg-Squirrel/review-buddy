@@ -1,6 +1,14 @@
 """A script for doing AI code reviews using Ollama"""
 
-#pylint: disable=invalid-name
+# Rationale for disabled lints
+# invalid-name: global vars are lowercase, PyLint considers them
+# to be consts and flags them.
+# global-statement: not typically ideal at scale but this is just
+# a small script.
+# broad-exception-caught: Similar to ignoring global-statement
+# this is for brevity and not ideal at scale. Console output will
+# contain error details as much as reasonably possible.
+#pylint: disable=invalid-name, global-statement, broad-exception-caught
 
 import json
 import textwrap
