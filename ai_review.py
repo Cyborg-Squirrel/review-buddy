@@ -119,6 +119,7 @@ def read_config():
                             "list of objects with a name and owner.")
 
 def process_pull_requests(pulls):
+    """Checks comments on pull requests and requests Ollama for code reviews"""
     for pr in pulls:
         pr_number = pr["number"]
         pr_title = pr["title"]
