@@ -7,11 +7,11 @@
 # to be consts and flags them.
 # global-statement: not typically ideal at scale but this is just
 # a small script.
-# broad-exception-caught: Similar to ignoring global-statement
-# this is for brevity and not ideal at scale. Console output will
-# contain error details as much as reasonably possible.
+# broad-exception-caught, broad-exception-raised: Similar to ignoring
+# global-statement this is for brevity and not ideal at scale.
+# Console output will contain error details as much as reasonably possible.
 #
-#pylint: disable=invalid-name, global-statement, broad-exception-caught
+#pylint: disable=invalid-name, global-statement, broad-exception-caught, broad-exception-raised
 
 import json
 import textwrap
