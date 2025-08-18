@@ -54,9 +54,9 @@ def get_pull_request_diff(owner, repo, pr_number):
 def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
     prompt = textwrap.dedent(f"""
-    You are a senior software engineer. Review the following Git diff which 
-    came from a pull request titled {title}. Point out potential bugs, style 
-    issues, and improvements.
+    You are a senior software engineer. Review the Git diff which came from 
+    a pull request titled {title}. Point out potential bugs, style issues, 
+    and improvements. Include example code to illustrate review feedback.
 
     Diff:
     {diff_text}
@@ -96,17 +96,59 @@ def read_config():
         for repo in repos:
             name = repo[REPO_NAME_KEY]
             if name is None or len(name) == 0:
-                raise Exception("Repository name is not set! Please ensure it is present for all entries in the repo-list.")
+                raise Exception("""Repository name is not set! 
+                                Please ensure it is present for all 
+                                entries in the repo-list.""")
             owner = repo[REPO_OWNER_KEY]
             if owner is None or len(owner) == 0:
-                raise Exception("Repository owner is not set! Please ensure it is present for all entries in the repo-list.")
+                raise Exception("""Repository owner is not set! 
+                                Please ensure it is present for all 
+                                entries in the repo-list.""")
             repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
         
         if repo_list.count == 0:
-            raise Exception("repos list is empty! Please include a list of objects with a name and owner.")
+            raise Exception("""repos list is empty! Please include a 
+                            list of objects with a name and owner.""")
+
+def do_reviews():
+    print("Checking for open pull requests")
+    try:
+        for repo in repo_list:
+            owner = repo[REPO_OWNER_KEY]
+            name = repo[REPO_NAME_KEY]
+            pulls = get_pull_requests(owner, name)
+
+            if not pulls:
+                print("No open pull requests.")
+            else:
+                for pr in pulls:
+                    pr_number = pr["number"]
+                    pr_title = pr["title"]
+                    print(f"\n=== PR #{pr_number}: {pr_title} ===")
+
+                    comments = get_pull_request_comments(owner, name, pr_number)
+                    if comments:
+                        print("GitHub Comments:")
+                        for c in comments:
+                            print(f"- {c['user']['login']}: {c['body']}")
+                    else:
+                        print("No GitHub comments.")
+
+                    diff = get_pull_request_diff(owner, name, pr_number)
+                    print("\nSending diff to Ollama for review...")
+
+                    # trim to avoid overly large prompt
+                    review = ask_ollama_for_review(pr_title, diff[:4000])
+                    print("\n--- Ollama Review ---")
+                    print(review)
+        print("Waiting one minute...")
+        time.sleep(60)
+    except Exception as e:
+        print("Encountered error:", e)
+        time.sleep(5 * 60)
 
 def main():
-    """Runs the loop to check specified repos and post code reviews from Ollama"""
+    """Reads in the config then runs the loop to check specified repos for pull requests then post code reviews from Ollama"""
     try:
         read_config()
         print(f"Ollama url: {ollama_url}")
@@ -116,40 +158,7 @@ def main():
         print("Error while trying to read in config:", e)
         return -1
     while True:
-        print("Checking for open pull requests")
-        try:
-            for repo in repo_list:
-                owner = repo[REPO_OWNER_KEY]
-                name = repo[REPO_NAME_KEY]
-                pulls = get_pull_requests(owner, name)
-
-                if not pulls:
-                    print("No open pull requests.")
-                else:
-                    for pr in pulls:
-                        pr_number = pr["number"]
-                        pr_title = pr["title"]
-                        print(f"\n=== PR #{pr_number}: {pr_title} ===")
-
-                        comments = get_pull_request_comments(owner, name, pr_number)
-                        if comments:
-                            print("GitHub Comments:")
-                            for c in comments:
-                                print(f"- {c['user']['login']}: {c['body']}")
-                        else:
-                            print("No GitHub comments.")
-
-                        diff = get_pull_request_diff(owner, name, pr_number)
-                        print("\nSending diff to Ollama for review...")
-
-                        review = ask_ollama_for_review(pr_title, diff[:4000])  # trim to avoid overly large prompt
-                        print("\n--- Ollama Review ---")
-                        print(review)
-            print("Waiting one minute...")
-            time.sleep(60)
-        except Exception as e:
-            print("Encountered error:", e)
-            time.sleep(5 * 60)
+        do_reviews()
         
 
 if __name__ == "__main__":
