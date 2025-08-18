@@ -1,3 +1,18 @@
+"""A script for doing AI code reviews using Ollama"""
+
+# ------------------------------
+# Rationale for disabled lints
+# ------------------------------
+# invalid-name: global vars are lowercase, PyLint considers them
+# to be consts and flags them.
+# global-statement: not typically ideal at scale but this is just
+# a small script.
+# broad-exception-caught, broad-exception-raised: Similar to ignoring
+# global-statement this is for brevity and not ideal at scale.
+# Console output will contain error details as much as reasonably possible.
+#
+#pylint: disable=invalid-name, global-statement, broad-exception-caught, broad-exception-raised
+
 import json
 import textwrap
 import time
@@ -23,35 +38,32 @@ ALLOWED_MODELS_KEY = "allowed-models"
 allowed_ollama_models = [OLLAMA_DEFAULT_MODEL]
 # ------------------------------
 
-def get_headers():
+def get_json_response_headers():
+    """Returns a dict of the default Github api headers"""
     return {
         "Authorization": f"Bearer {github_token}",
         "Accept": "application/vnd.github.raw+json",
         "X-GitHub-Api-Version": "2022-11-28"
         }
 
-def get_pull_requests(owner, repo):
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls?state=open"
-    r = requests.get(url, headers=get_headers())
+def do_github_api_request_json(url):
+    """Does a Github api request, returns the response json"""
+    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
     r.raise_for_status()
     return r.json()
 
-
-def get_pull_request_comments(owner, repo, pr_number):
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
-    r = requests.get(url, headers=get_headers())
-    r.raise_for_status()
-    return r.json()
-
-
-def get_pull_request_diff(owner, repo, pr_number):
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}"
-    diff_headers = get_headers().copy()
-    diff_headers["Accept"] = "application/vnd.github.diff"
-    r = requests.get(url, headers=diff_headers)
+def do_github_api_request_raw(url, headers):
+    """Does a Github api request, returns the raw text"""
+    r = requests.get(url, headers=headers, timeout=5)
     r.raise_for_status()
     return r.text
 
+def get_pull_requests(owner, repo):
+    """Requests all open pull requests for the specified owner's repo"""
+    url = f"{API_BASE}/repos/{owner}/{repo}/pulls?state=open"
+    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
+    r.raise_for_status()
+    return r.json()
 
 def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
@@ -63,14 +75,14 @@ def ask_ollama_for_review(title, diff_text):
     Diff:
     {diff_text}
     """)
-    
+
     payload = {
         "model": OLLAMA_DEFAULT_MODEL,
         "prompt": prompt,
         "stream": False
     }
 
-    r = requests.post(ollama_url, json=payload)
+    r = requests.post(ollama_url, json=payload, timeout=60)
     r.raise_for_status()
     result = r.json()
     return result.get("response", "").strip()
@@ -78,15 +90,15 @@ def ask_ollama_for_review(title, diff_text):
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
-    with open('config.json', 'r') as file:
+    with open('config.json', 'r', encoding='utf-8') as file:
         data = json.load(file)
 
         if GIT_TOKEN_KEY not in data or data[GIT_TOKEN_KEY] == 0:
             raise Exception("git-token not found in config file!")
-        
+
         global github_token
         github_token = data[GIT_TOKEN_KEY]
-        
+
         global ollama_url
         if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
             ollama_url = data[OLLAMA_URL_KEY]
@@ -103,19 +115,46 @@ def read_config():
         for repo in repos:
             name = repo[REPO_NAME_KEY]
             if name is None or len(name) == 0:
-                raise Exception("""Repository name is not set! 
-                                Please ensure it is present for all 
-                                entries in the repo-list.""")
+                raise Exception("Repository name is not set! " \
+                                "Please ensure it is present for all " \
+                                "entries in the repo-list.")
             owner = repo[REPO_OWNER_KEY]
             if owner is None or len(owner) == 0:
-                raise Exception("""Repository owner is not set! 
-                                Please ensure it is present for all 
-                                entries in the repo-list.""")
+                raise Exception("Repository owner is not set! " \
+                                "Please ensure it is present for all " \
+                                "entries in the repo-list.")
             repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
-        
-        if repo_list.count == 0:
-            raise Exception("""repos list is empty! Please include a 
-                            list of objects with a name and owner.""")
+
+        if len(repo_list) == 0:
+            raise Exception("Repository list is empty! Please include a " \
+                            "list of objects with a name and owner.")
+
+def process_pull_requests(pulls):
+    """Checks comments on pull requests and requests Ollama for code reviews"""
+    for pr in pulls:
+        pr_number = pr["number"]
+        pr_title = pr["title"]
+        pr_url = pr["url"]
+        comments_url = pr["review_comments_url"]
+        print(f"\n=== PR #{pr_number}: {pr_title} ===")
+
+        comments = do_github_api_request_json(comments_url)
+        if comments:
+            print("GitHub Comments:")
+            for c in comments:
+                print(f"- {c['user']['login']}: {c['body']}")
+        else:
+            print("No GitHub comments.")
+
+        diff_headers = get_json_response_headers()
+        diff_headers["Accept"] = "application/vnd.github.diff"
+        diff = do_github_api_request_raw(pr_url, diff_headers)
+        print("\nSending diff to Ollama for review...")
+
+        # trim to avoid overly large prompt
+        review = ask_ollama_for_review(pr_title, diff[:4000])
+        print("\n--- Ollama Review ---")
+        print(review)
 
 def do_reviews():
     """Checks the configured repositories for open pull requests to review 
@@ -130,27 +169,8 @@ def do_reviews():
             if not pulls:
                 print("No open pull requests.")
             else:
-                for pr in pulls:
-                    pr_number = pr["number"]
-                    pr_title = pr["title"]
-                    print(f"\n=== PR #{pr_number}: {pr_title} ===")
-
-                    comments = get_pull_request_comments(owner, name, pr_number)
-                    if comments:
-                        print("GitHub Comments:")
-                        for c in comments:
-                            print(f"- {c['user']['login']}: {c['body']}")
-                    else:
-                        print("No GitHub comments.")
-
-                    diff = get_pull_request_diff(owner, name, pr_number)
-                    print("\nSending diff to Ollama for review...")
-
-                    # trim to avoid overly large prompt
-                    review = ask_ollama_for_review(pr_title, diff[:4000])
-                    print("\n--- Ollama Review ---")
-                    print(review)
-        print("Waiting one minute...")
+                process_pull_requests(pulls)
+        print("\nWaiting one minute...")
         time.sleep(60)
     except Exception as e:
         print("Encountered error:", e)
@@ -162,7 +182,9 @@ def main():
     try:
         read_config()
         print(f"Ollama url: {ollama_url}")
-        repo_list_printable = list(map(lambda x: f"{x[REPO_OWNER_KEY]}/{x[REPO_NAME_KEY]}", repo_list))
+        repo_list_printable = list(map(
+            lambda x: f"""{x[REPO_OWNER_KEY]}/{x[REPO_NAME_KEY]}""",
+            repo_list))
         print("Watching repositories: ", repo_list_printable)
     except Exception as e:
         print("Error while trying to read in config:", e)
