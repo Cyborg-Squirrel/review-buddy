@@ -116,7 +116,7 @@ def read_config():
             name = repo[REPO_NAME_KEY]
             if name is None or len(name) == 0:
                 raise Exception("Repository name is not set! " \
-                                "lease ensure it is present for all " \
+                                "Please ensure it is present for all " \
                                 "entries in the repo-list.")
             owner = repo[REPO_OWNER_KEY]
             if owner is None or len(owner) == 0:
