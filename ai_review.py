@@ -17,8 +17,8 @@ API_BASE = "https://api.github.com"
 
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
-ollama_url = ""
-OLLAMA_MODEL = "codellama"  # pick a model you have (e.g., "codellama", "llama3", etc.)
+ollama_url = OLLAMA_DEFAULT_URL
+OLLAMA_DEFAULT_MODEL = "codellama"
 # ------------------------------
 
 def get_headers():
@@ -56,14 +56,14 @@ def ask_ollama_for_review(title, diff_text):
     prompt = textwrap.dedent(f"""
     You are a senior software engineer. Review the Git diff which came from 
     a pull request titled {title}. Point out potential bugs, style issues, 
-    and improvements. Include example code to illustrate review feedback.
+    and improvements. Include example code in review feedback.
 
     Diff:
     {diff_text}
     """)
     
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": OLLAMA_DEFAULT_MODEL,
         "prompt": prompt,
         "stream": False
     }
@@ -111,6 +111,8 @@ def read_config():
                             list of objects with a name and owner.""")
 
 def do_reviews():
+    """Checks the configured repositories for open pull requests to review 
+    and sends git diff to Ollama for review"""
     print("Checking for open pull requests")
     try:
         for repo in repo_list:
@@ -148,7 +150,8 @@ def do_reviews():
         time.sleep(5 * 60)
 
 def main():
-    """Reads in the config then runs the loop to check specified repos for pull requests then post code reviews from Ollama"""
+    """Reads in the config then runs the loop to check specified repos 
+    for pull requests then post code reviews from Ollama"""
     try:
         read_config()
         print(f"Ollama url: {ollama_url}")
@@ -159,7 +162,6 @@ def main():
         return -1
     while True:
         do_reviews()
-        
 
 if __name__ == "__main__":
     main()
