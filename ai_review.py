@@ -79,7 +79,7 @@ def ask_ollama_for_review(title, diff_text):
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
-    with open('config.json', 'r') as file:
+    with open('config.json', 'r', encoding='utf-8') as file:
         data = json.load(file)
 
         if GIT_TOKEN_KEY not in data or data[GIT_TOKEN_KEY] == 0:
@@ -125,7 +125,7 @@ def process_pull_requests(pulls):
         pr_url = pr["url"]
         comments_url = pr["review_comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
-        
+
         comments = do_github_api_request_json(comments_url)
         if comments:
             print("GitHub Comments:")
