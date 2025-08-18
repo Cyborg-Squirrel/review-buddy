@@ -19,6 +19,8 @@ OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
 ollama_url = OLLAMA_DEFAULT_URL
 OLLAMA_DEFAULT_MODEL = "codellama"
+ALLOWED_MODELS_KEY = "allowed-models"
+allowed_ollama_models = [OLLAMA_DEFAULT_MODEL]
 # ------------------------------
 
 def get_headers():
@@ -79,17 +81,22 @@ def read_config():
     with open('config.json', 'r') as file:
         data = json.load(file)
 
-        global github_token
-        github_token = data[GIT_TOKEN_KEY]
-        if len(github_token) == 0:
+        if GIT_TOKEN_KEY not in data or data[GIT_TOKEN_KEY] == 0:
             raise Exception("git-token not found in config file!")
         
+        global github_token
+        github_token = data[GIT_TOKEN_KEY]
+        
         global ollama_url
-        optional_ollama_url = data[OLLAMA_URL_KEY]
-        if OLLAMA_URL_KEY in data and len(optional_ollama_url) > 0:
-            ollama_url = optional_ollama_url
+        if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
+            ollama_url = data[OLLAMA_URL_KEY]
         else:
             ollama_url = OLLAMA_DEFAULT_URL
+
+        if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
+            allowed_ollama_models.clear()
+            for model in data[ALLOWED_MODELS_KEY]:
+                allowed_ollama_models.append(model)
 
         repos = data[REPO_LIST_KEY]
 
