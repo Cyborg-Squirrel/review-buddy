@@ -51,12 +51,12 @@ def get_pull_request_diff(owner, repo, pr_number):
     return r.text
 
 
-def ask_ollama_for_review(diff_text):
+def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
     prompt = textwrap.dedent(f"""
-    You are a senior software engineer. Review the following Git diff as if it 
-    came from a pull request. Point out potential bugs, style issues, and 
-    improvements.
+    You are a senior software engineer. Review the following Git diff which 
+    came from a pull request titled {title}. Point out potential bugs, style 
+    issues, and improvements.
 
     Diff:
     {diff_text}
@@ -117,35 +117,40 @@ def main():
         return -1
     while True:
         print("Checking for open pull requests")
-        for repo in repo_list:
-            owner = repo[REPO_OWNER_KEY]
-            name = repo[REPO_NAME_KEY]
-            pulls = get_pull_requests(owner, name)
+        try:
+            for repo in repo_list:
+                owner = repo[REPO_OWNER_KEY]
+                name = repo[REPO_NAME_KEY]
+                pulls = get_pull_requests(owner, name)
 
-            if not pulls:
-                print("No open pull requests.")
-            else:
-                for pr in pulls:
-                    pr_number = pr["number"]
-                    pr_title = pr["title"]
-                    print(f"\n=== PR #{pr_number}: {pr_title} ===")
+                if not pulls:
+                    print("No open pull requests.")
+                else:
+                    for pr in pulls:
+                        pr_number = pr["number"]
+                        pr_title = pr["title"]
+                        print(f"\n=== PR #{pr_number}: {pr_title} ===")
 
-                    comments = get_pull_request_comments(owner, name, pr_number)
-                    if comments:
-                        print("GitHub Comments:")
-                        for c in comments:
-                            print(f"- {c['user']['login']}: {c['body']}")
-                    else:
-                        print("No GitHub comments.")
+                        comments = get_pull_request_comments(owner, name, pr_number)
+                        if comments:
+                            print("GitHub Comments:")
+                            for c in comments:
+                                print(f"- {c['user']['login']}: {c['body']}")
+                        else:
+                            print("No GitHub comments.")
 
-                    diff = get_pull_request_diff(owner, name, pr_number)
-                    print("\nSending diff to Ollama for review...")
+                        diff = get_pull_request_diff(owner, name, pr_number)
+                        print("\nSending diff to Ollama for review...")
 
-                    review = ask_ollama_for_review(diff[:4000])  # trim to avoid overly large prompt
-                    print("\n--- Ollama Review ---")
-                    print(review)
-        print("Waiting one minute...")
-        time.sleep(60)
+                        review = ask_ollama_for_review(pr_title, diff[:4000])  # trim to avoid overly large prompt
+                        print("\n--- Ollama Review ---")
+                        print(review)
+            print("Waiting one minute...")
+            time.sleep(60)
+        except Exception as e:
+            print("Encountered error:", e)
+            time.sleep(5 * 60)
+        
 
 if __name__ == "__main__":
     main()
