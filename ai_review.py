@@ -63,7 +63,7 @@ def ask_ollama_for_review(title, diff_text):
     Diff:
     {diff_text}
     """)
-    
+
     payload = {
         "model": OLLAMA_DEFAULT_MODEL,
         "prompt": prompt,
@@ -83,10 +83,10 @@ def read_config():
 
         if GIT_TOKEN_KEY not in data or data[GIT_TOKEN_KEY] == 0:
             raise Exception("git-token not found in config file!")
-        
+
         global github_token
         github_token = data[GIT_TOKEN_KEY]
-        
+
         global ollama_url
         if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
             ollama_url = data[OLLAMA_URL_KEY]
@@ -112,9 +112,9 @@ def read_config():
                                 Please ensure it is present for all 
                                 entries in the repo-list.""")
             repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
-        
+
         if repo_list.count == 0:
-            raise Exception("""repos list is empty! Please include a 
+            raise Exception("""repos list is empty! Please include a
                             list of objects with a name and owner.""")
 
 def do_reviews():
@@ -162,7 +162,8 @@ def main():
     try:
         read_config()
         print(f"Ollama url: {ollama_url}")
-        repo_list_printable = list(map(lambda x: f"{x[REPO_OWNER_KEY]}/{x[REPO_NAME_KEY]}", repo_list))
+        repo_list_printable = list(map(lambda x: f"""{x[REPO_OWNER_KEY]}
+                                       /{x[REPO_NAME_KEY]}""", repo_list))
         print("Watching repositories: ", repo_list_printable)
     except Exception as e:
         print("Error while trying to read in config:", e)
