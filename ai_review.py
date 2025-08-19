@@ -178,7 +178,7 @@ def process_pull_requests(pulls):
                 do_json_api_post(comments_url, {'body': review_content})
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
-                      f"or the last comment was posted by {git_username}")
+                      f"or the last comment was posted by {git_username}.")
         else:
             print("No GitHub comments.")
 
