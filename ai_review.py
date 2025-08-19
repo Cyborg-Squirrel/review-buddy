@@ -114,7 +114,7 @@ def read_config():
 
         if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
             raise Exception("git-username not found in config file!")
-        
+
         global git_username
         git_username = data[GITHUB_USERNAME_KEY]
 
@@ -136,8 +136,9 @@ def read_config():
         if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " \
                             "list of objects with a name and owner.")
-        
+
 def do_review(pull) -> str:
+    """Sends the git diff to Ollama for review, returns the review text."""
     pr_title = pull["title"]
     pr_url = pull["url"]
     diff_headers = get_json_response_headers()
@@ -156,7 +157,6 @@ def process_pull_requests(pulls):
     for pr in pulls:
         pr_number = pr["number"]
         pr_title = pr["title"]
-        pr_url = pr["url"]
         comments_url = pr["review_comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
 
@@ -174,7 +174,7 @@ def process_pull_requests(pulls):
                     print(f"Comment does not mention {git_username}. Ignoring...")
         else:
             print("No GitHub comments.")
-        
+
 
 def do_reviews():
     """Checks the configured repositories for open pull requests to review 
