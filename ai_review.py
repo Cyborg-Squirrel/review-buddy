@@ -50,8 +50,9 @@ def get_json_response_headers():
 
 def do_json_api_post(url, request):
     """POSTs a Github api request, returns the response json"""
-    req_body = json.dumps(request)
-    r = requests.post(url, headers=get_json_response_headers(), timeout=5, json=req_body)
+    req = json.dumps(request)
+    print(f"Request: {req}")
+    r = requests.post(url, headers=get_json_response_headers(), timeout=5, data=req)
     r.raise_for_status()
     return r.json()
 
@@ -123,18 +124,18 @@ def read_config():
         for repo in repos:
             name = repo[REPO_NAME_KEY]
             if name is None or len(name) == 0:
-                raise Exception("Repository name is not set! " \
-                                "Please ensure it is present for all " \
+                raise Exception("Repository name is not set! " +
+                                "Please ensure it is present for all " +
                                 "entries in the repo-list.")
             owner = repo[REPO_OWNER_KEY]
             if owner is None or len(owner) == 0:
-                raise Exception("Repository owner is not set! " \
-                                "Please ensure it is present for all " \
+                raise Exception("Repository owner is not set! " +
+                                "Please ensure it is present for all " +
                                 "entries in the repo-list.")
             repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
 
         if len(repo_list) == 0:
-            raise Exception("Repository list is empty! Please include a " \
+            raise Exception("Repository list is empty! Please include a " +
                             "list of objects with a name and owner.")
 
 def do_review(pull) -> str:
@@ -157,26 +158,32 @@ def process_pull_requests(pulls):
     for pr in pulls:
         pr_number = pr["number"]
         pr_title = pr["title"]
-        comments_url = pr["review_comments_url"]
+        comments_url = pr["comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
 
         comments = do_json_api_get(comments_url)
         if comments:
             print("GitHub Comments:")
+            review_requested = False
             for c in comments:
+                comment_username = c['user']['login']
                 comment_body = c['body']
-                print(f"- {c['user']['login']}: {comment_body}")
-                if f"@{git_username}" in comment_body:
-                    comment_api_url = pr["review_comments_url"]
-                    review_content = do_review(pr)
-                    do_json_api_post(comment_api_url, {'body': review_content})
-                else:
-                    print(f"Comment does not mention {git_username}. Ignoring...")
+                print(f"- {comment_username}: {comment_body[:140]}")
+                if git_username in comment_username:
+                    review_requested = False
+                elif f"@{git_username}" in comment_body:
+                    review_requested = True
+            if review_requested:
+                review_content = do_review(pr)
+                do_json_api_post(comments_url, {'body': review_content})
+            else:
+                print(f"\nNot doing a review. No @{git_username} comment found " +
+                      f"or the last comment was posted by {git_username}")
         else:
             print("No GitHub comments.")
 
 
-def do_reviews():
+def check_repos():
     """Checks the configured repositories for open pull requests to review 
     and sends git diff to Ollama for review"""
     print("Checking for open pull requests")
@@ -211,7 +218,7 @@ def main():
         print("Error while trying to read in config:", e)
         return -1
     while True:
-        do_reviews()
+        check_repos()
 
 if __name__ == "__main__":
     main()
