@@ -29,6 +29,8 @@ REPO_LIST_KEY = "repositories"
 repo_list = []
 GIT_TOKEN_KEY = "git-token"
 API_BASE = "https://api.github.com"
+GITHUB_USERNAME_KEY = "git-username"
+git_username = ""
 
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
@@ -46,24 +48,24 @@ def get_json_response_headers():
         "X-GitHub-Api-Version": "2022-11-28"
         }
 
-def do_github_api_request_json(url):
+def do_json_api_post(url, request):
+    """POSTs a Github api request, returns the response json"""
+    req_body = json.dumps(request)
+    r = requests.post(url, headers=get_json_response_headers(), timeout=5, json=req_body)
+    r.raise_for_status()
+    return r.json()
+
+def do_json_api_get(url):
     """Does a Github api request, returns the response json"""
     r = requests.get(url, headers=get_json_response_headers(), timeout=5)
     r.raise_for_status()
     return r.json()
 
-def do_github_api_request_raw(url, headers):
+def do_json_api_request_raw_response(url, headers):
     """Does a Github api request, returns the raw text"""
     r = requests.get(url, headers=headers, timeout=5)
     r.raise_for_status()
     return r.text
-
-def get_pull_requests(owner, repo):
-    """Requests all open pull requests for the specified owner's repo"""
-    url = f"{API_BASE}/repos/{owner}/{repo}/pulls?state=open"
-    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
-    r.raise_for_status()
-    return r.json()
 
 def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
@@ -93,7 +95,7 @@ def read_config():
     with open('config.json', 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-        if GIT_TOKEN_KEY not in data or data[GIT_TOKEN_KEY] == 0:
+        if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
             raise Exception("git-token not found in config file!")
 
         global github_token
@@ -109,6 +111,12 @@ def read_config():
             allowed_ollama_models.clear()
             for model in data[ALLOWED_MODELS_KEY]:
                 allowed_ollama_models.append(model)
+
+        if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
+            raise Exception("git-username not found in config file!")
+        
+        global git_username
+        git_username = data[GITHUB_USERNAME_KEY]
 
         repos = data[REPO_LIST_KEY]
 
@@ -128,6 +136,20 @@ def read_config():
         if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " \
                             "list of objects with a name and owner.")
+        
+def do_review(pull) -> str:
+    pr_title = pull["title"]
+    pr_url = pull["url"]
+    diff_headers = get_json_response_headers()
+    diff_headers["Accept"] = "application/vnd.github.diff"
+    diff = do_json_api_request_raw_response(pr_url, diff_headers)
+    print("\nSending diff to Ollama for review...")
+
+    # trim to avoid overly large prompt
+    review = ask_ollama_for_review(pr_title, diff[:4000])
+    print("\n--- Ollama Review ---")
+    print(review)
+    return review
 
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
@@ -138,23 +160,21 @@ def process_pull_requests(pulls):
         comments_url = pr["review_comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
 
-        comments = do_github_api_request_json(comments_url)
+        comments = do_json_api_get(comments_url)
         if comments:
             print("GitHub Comments:")
             for c in comments:
-                print(f"- {c['user']['login']}: {c['body']}")
+                comment_body = c['body']
+                print(f"- {c['user']['login']}: {comment_body}")
+                if f"@{git_username}" in comment_body:
+                    comment_api_url = pr["review_comments_url"]
+                    review_content = do_review(pr)
+                    do_json_api_post(comment_api_url, {'body': review_content})
+                else:
+                    print(f"Comment does not mention {git_username}. Ignoring...")
         else:
             print("No GitHub comments.")
-
-        diff_headers = get_json_response_headers()
-        diff_headers["Accept"] = "application/vnd.github.diff"
-        diff = do_github_api_request_raw(pr_url, diff_headers)
-        print("\nSending diff to Ollama for review...")
-
-        # trim to avoid overly large prompt
-        review = ask_ollama_for_review(pr_title, diff[:4000])
-        print("\n--- Ollama Review ---")
-        print(review)
+        
 
 def do_reviews():
     """Checks the configured repositories for open pull requests to review 
@@ -164,7 +184,8 @@ def do_reviews():
         for repo in repo_list:
             owner = repo[REPO_OWNER_KEY]
             name = repo[REPO_NAME_KEY]
-            pulls = get_pull_requests(owner, name)
+            open_prs_url = f"{API_BASE}/repos/{owner}/{name}/pulls?state=open"
+            pulls = do_json_api_get(open_prs_url)
 
             if not pulls:
                 print("No open pull requests.")
