@@ -33,7 +33,7 @@ config: GithubConfig
 git_api: GithubApi
 
 OLLAMA_URL_KEY = "ollama-url"
-OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
+OLLAMA_DEFAULT_URL = "http://localhost:11434"
 AI_MODEL_NAME_KEY = "ai-model"
 DEFAULT_AI_MODEL = "codellama"
 ollama_api: OllamaApi
