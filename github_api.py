@@ -5,7 +5,7 @@
 # ------------------------------
 # too-few-public-methods: PyLint flags model type classes with less than
 # two public functions. This seems like a bad idea for a linter rule.
-#pylint disable=too-few-public-methods
+#pylint: disable=too-few-public-methods
 
 import json
 
