@@ -19,18 +19,19 @@ import time
 
 import requests
 
+from github_api import GithubApi, GithubConfig, GithubRepo
+
 # ------------------------------
 # CONFIG
 # ------------------------------
-github_token = ""
 REPO_OWNER_KEY = "owner"
 REPO_NAME_KEY = "name"
 REPO_LIST_KEY = "repositories"
-repo_list = []
 GIT_TOKEN_KEY = "git-token"
-API_BASE = "https://api.github.com"
 GITHUB_USERNAME_KEY = "git-username"
-git_username = ""
+git_username: str
+config: GithubConfig
+api: GithubApi
 
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
@@ -41,34 +42,6 @@ model_name = DEFAULT_AI_MODEL
 ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 # ------------------------------
-
-def get_json_response_headers():
-    """Returns a dict of the default Github api headers"""
-    return {
-        "Authorization": f"Bearer {github_token}",
-        "Accept": "application/vnd.github.raw+json",
-        "X-GitHub-Api-Version": "2022-11-28"
-        }
-
-def do_json_api_post(url, request):
-    """POSTs a Github api request, returns the response json"""
-    req = json.dumps(request)
-    print(f"Request: {req}")
-    r = requests.post(url, headers=get_json_response_headers(), timeout=5, data=req)
-    r.raise_for_status()
-    return r.json()
-
-def do_json_api_get(url):
-    """Does a Github api request, returns the response json"""
-    r = requests.get(url, headers=get_json_response_headers(), timeout=5)
-    r.raise_for_status()
-    return r.json()
-
-def do_json_api_request_raw_response(url, headers):
-    """Does a Github api request, returns the raw text"""
-    r = requests.get(url, headers=headers, timeout=5)
-    r.raise_for_status()
-    return r.text
 
 def ask_ollama_for_review(title, diff_text):
     """Send the diff to Ollama and request a code review"""
@@ -87,7 +60,7 @@ def ask_ollama_for_review(title, diff_text):
         "stream": False
     }
 
-    r = requests.post(ollama_url, json=payload, timeout=60)
+    r = requests.post(ollama_url, json=payload, timeout=60*3)
     r.raise_for_status()
     result = r.json()
     return result.get("response", "").strip()
@@ -101,8 +74,6 @@ def read_config():
 
         if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
             raise Exception("git-token not found in config file!")
-
-        global github_token
         github_token = data[GIT_TOKEN_KEY]
 
         global ollama_url
@@ -131,6 +102,7 @@ def read_config():
         git_username = data[GITHUB_USERNAME_KEY]
 
         repos = data[REPO_LIST_KEY]
+        repo_list = []
 
         for repo in repos:
             name = repo[REPO_NAME_KEY]
@@ -143,19 +115,20 @@ def read_config():
                 raise Exception("Repository owner is not set! " +
                                 "Please ensure it is present for all " +
                                 "entries in the repo-list.")
-            repo_list.append({REPO_NAME_KEY:name, REPO_OWNER_KEY:owner})
+            repo_list.append(GithubRepo(name=name, owner=owner))
 
         if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " +
                             "list of objects with a name and owner.")
 
+        global config, api
+        config = GithubConfig(repo_list=repo_list, token=github_token)
+        api = GithubApi(config=config)
+
 def do_review(pull) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     pr_title = pull["title"]
-    pr_url = pull["url"]
-    diff_headers = get_json_response_headers()
-    diff_headers["Accept"] = "application/vnd.github.diff"
-    diff = do_json_api_request_raw_response(pr_url, diff_headers)
+    diff = api.get_pr_diff(pull)
     print("\nSending diff to Ollama for review...")
 
     # trim to avoid overly large prompt
@@ -167,12 +140,7 @@ def do_review(pull) -> str:
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
     for pr in pulls:
-        pr_number = pr["number"]
-        pr_title = pr["title"]
-        comments_url = pr["comments_url"]
-        print(f"\n=== PR #{pr_number}: {pr_title} ===")
-
-        comments = do_json_api_get(comments_url)
+        comments = api.get_comments_for_pr(pr)
         if comments:
             print("GitHub Comments:")
             review_requested = False
@@ -186,34 +154,12 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 review_content = do_review(pr)
-                do_json_api_post(comments_url, {'body': review_content})
+                api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
                       f"or the last comment was posted by {git_username}.")
         else:
             print("No GitHub comments.")
-
-
-def check_repos():
-    """Checks the configured repositories for open pull requests to review 
-    and sends git diff to Ollama for review"""
-    print("Checking for open pull requests")
-    try:
-        for repo in repo_list:
-            owner = repo[REPO_OWNER_KEY]
-            name = repo[REPO_NAME_KEY]
-            open_prs_url = f"{API_BASE}/repos/{owner}/{name}/pulls?state=open"
-            pulls = do_json_api_get(open_prs_url)
-
-            if not pulls:
-                print("No open pull requests.")
-            else:
-                process_pull_requests(pulls)
-        print("\nWaiting one minute...")
-        time.sleep(60)
-    except Exception as e:
-        print("Encountered error:", e)
-        time.sleep(5 * 60)
 
 def main():
     """Reads in the config then runs the loop to check specified repos 
@@ -222,14 +168,17 @@ def main():
         read_config()
         print(f"Ollama url: {ollama_url}")
         repo_list_printable = list(map(
-            lambda x: f"""{x[REPO_OWNER_KEY]}/{x[REPO_NAME_KEY]}""",
-            repo_list))
+            lambda x: f"""{x.owner}/{x.name}""",
+            config.repo_list))
         print("Watching repositories: ", repo_list_printable)
     except Exception as e:
         print("Error while trying to read in config:", e)
         return -1
     while True:
-        check_repos()
+        open_prs = api.get_open_prs()
+        if open_prs is not None and len(open_prs) > 0:
+            process_pull_requests(open_prs)
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()
