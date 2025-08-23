@@ -8,5 +8,6 @@
             "owner": ""
         }
     ],
-    "allowed-models": []
+    "allowed-models": [],
+    "ai-model": "codellama"
 }
