@@ -35,9 +35,9 @@ git_username = ""
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
 ollama_url = OLLAMA_DEFAULT_URL
-MODEL_NAME_KEY = "ai-model"
-DEFAULT_MODEL = "codellama"
-model_name = DEFAULT_MODEL
+AI_MODEL_NAME_KEY = "ai-model"
+DEFAULT_AI_MODEL = "codellama"
+model_name = DEFAULT_AI_MODEL
 ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 # ------------------------------
@@ -112,8 +112,8 @@ def read_config():
             ollama_url = OLLAMA_DEFAULT_URL
 
         global model_name
-        if MODEL_NAME_KEY in data and len(data[MODEL_NAME_KEY]) > 0:
-            model_name = data[MODEL_NAME_KEY]
+        if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
+            model_name = data[AI_MODEL_NAME_KEY]
 
         if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
             allowed_models.clear()
