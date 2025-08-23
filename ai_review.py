@@ -24,9 +24,8 @@ from github_api import GithubApi, GithubConfig, GithubRepo
 # ------------------------------
 # CONFIG
 # ------------------------------
-# TODO Gitlab support, add api-name to config to allow github/gitlab to be specified
+# Add Gitlab support, add api-name to config to allow github/gitlab to be specified
 api_name = "git"
-github_token = ""
 REPO_OWNER_KEY = "owner"
 REPO_NAME_KEY = "name"
 REPO_LIST_KEY = "repositories"
@@ -123,7 +122,7 @@ def read_config():
         if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " +
                             "list of objects with a name and owner.")
-        
+
         global config, api
         config = GithubConfig(repo_list=repo_list, token=github_token)
         api = GithubApi(config=config)
@@ -181,6 +180,7 @@ def main():
         open_prs = api.get_open_prs()
         if open_prs is not None and len(open_prs) > 0:
             process_pull_requests(open_prs)
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()

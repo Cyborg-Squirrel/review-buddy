@@ -1,6 +1,13 @@
+"""An API class for interacting with Github"""
+
+# ------------------------------
+# Rationale for disabled lints
+# ------------------------------
+# too-few-public-methods: PyLint flags model type classes with less than
+# two public functions. This seems like a bad idea for a linter rule.
+#pylint disable=too-few-public-methods
 
 import json
-import time
 
 import requests
 
@@ -61,7 +68,7 @@ class GithubApi:
         r = requests.get(url, headers=headers, timeout=5)
         r.raise_for_status()
         return r.text
-    
+
     def get_open_prs(self):
         """Checks the configured repositories for open pull requests to review 
         and sends git diff to Ollama for review"""
@@ -73,8 +80,7 @@ class GithubApi:
             if not pulls:
                 print("No open pull requests.")
                 return []
-            else:
-                return pulls
+            return pulls
 
     def get_comments_for_pr(self, pr):
         """Gets all comments posted on a specified pr"""
@@ -83,13 +89,14 @@ class GithubApi:
         comments_url = pr["comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
         return self.__do_json_api_get(comments_url)
-    
+
     def get_pr_diff(self, pr):
+        """Gets the diff for the pull request in raw form (not json)"""
         pr_url = pr["url"]
         diff_headers = self.__get_json_response_headers()
         diff_headers["Accept"] = "application/vnd.github.diff"
         return self.__do_json_api_request_raw_response(pr_url, diff_headers)
-    
+
     def post_comment(self, pr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr["comments_url"]
