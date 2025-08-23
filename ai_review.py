@@ -17,9 +17,8 @@ import json
 import textwrap
 import time
 
-import requests
-
 from github_api import GithubApi, GithubConfig, GithubRepo
+from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
 # CONFIG
@@ -31,39 +30,17 @@ GIT_TOKEN_KEY = "git-token"
 GITHUB_USERNAME_KEY = "git-username"
 git_username: str
 config: GithubConfig
-api: GithubApi
+git_api: GithubApi
 
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
-ollama_url = OLLAMA_DEFAULT_URL
 AI_MODEL_NAME_KEY = "ai-model"
 DEFAULT_AI_MODEL = "codellama"
-model_name = DEFAULT_AI_MODEL
+ollama_api: OllamaApi
+
 ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 # ------------------------------
-
-def ask_ollama_for_review(title, diff_text):
-    """Send the diff to Ollama and request a code review"""
-    prompt = textwrap.dedent(f"""
-    You are a senior software engineer. Review the Git diff which came from 
-    a pull request titled {title}. Point out potential bugs, style issues, 
-    and improvements. Include example code in review feedback.
-
-    Diff:
-    {diff_text}
-    """)
-
-    payload = {
-        "model": model_name,
-        "prompt": prompt,
-        "stream": False
-    }
-
-    r = requests.post(ollama_url, json=payload, timeout=60*3)
-    r.raise_for_status()
-    result = r.json()
-    return result.get("response", "").strip()
 
 #pylint: disable=too-many-branches
 def read_config():
@@ -76,15 +53,21 @@ def read_config():
             raise Exception("git-token not found in config file!")
         github_token = data[GIT_TOKEN_KEY]
 
-        global ollama_url
+        ollama_url: str
         if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
             ollama_url = data[OLLAMA_URL_KEY]
         else:
             ollama_url = OLLAMA_DEFAULT_URL
 
-        global model_name
+        print(f"Ollama url: {ollama_url}")
+
+        model_name = DEFAULT_AI_MODEL
         if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
             model_name = data[AI_MODEL_NAME_KEY]
+
+        global ollama_api
+        ollama_config = OllamaConfig(ollama_url, model_name)
+        ollama_api = OllamaApi(ollama_config)
 
         if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
             allowed_models.clear()
@@ -121,18 +104,26 @@ def read_config():
             raise Exception("Repository list is empty! Please include a " +
                             "list of objects with a name and owner.")
 
-        global config, api
+        global config, git_api
         config = GithubConfig(repo_list=repo_list, token=github_token)
-        api = GithubApi(config=config)
+        git_api = GithubApi(config=config)
 
 def do_review(pull) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     pr_title = pull["title"]
-    diff = api.get_pr_diff(pull)
+    diff = git_api.get_pr_diff(pull)
     print("\nSending diff to Ollama for review...")
 
+    # The prompt - truncate diff to 4000 characters to avoid overly large prompt
+    request = textwrap.dedent(f"""
+                              You are a senior software engineer. Review the included
+                              code from a pull reuqest titled {pr_title}.
+                              Point out potential bugs, style issues,
+                              and improvements. Include example code in review feedback.
+                              {diff[:4000]}""")
+
     # trim to avoid overly large prompt
-    review = ask_ollama_for_review(pr_title, diff[:4000])
+    review = ollama_api.do_generation(request)
     print("\n--- Ollama Review ---")
     print(review)
     return review
@@ -140,7 +131,7 @@ def do_review(pull) -> str:
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
     for pr in pulls:
-        comments = api.get_comments_for_pr(pr)
+        comments = git_api.get_comments_for_pr(pr)
         if comments:
             print("GitHub Comments:")
             review_requested = False
@@ -154,19 +145,21 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 review_content = do_review(pr)
-                api.post_comment(pr, review_content)
+                git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
                       f"or the last comment was posted by {git_username}.")
         else:
             print("No GitHub comments.")
 
+# Pylint added because the loop just prints any error
+# Then waits for longer than normal to loop again
+#pylint: disable=bare-except
 def main():
     """Reads in the config then runs the loop to check specified repos 
     for pull requests then post code reviews from Ollama"""
     try:
         read_config()
-        print(f"Ollama url: {ollama_url}")
         repo_list_printable = list(map(
             lambda x: f"""{x.owner}/{x.name}""",
             config.repo_list))
@@ -175,10 +168,14 @@ def main():
         print("Error while trying to read in config:", e)
         return -1
     while True:
-        open_prs = api.get_open_prs()
-        if open_prs is not None and len(open_prs) > 0:
-            process_pull_requests(open_prs)
-        time.sleep(30)
+        try:
+            open_prs = git_api.get_open_prs()
+            if open_prs is not None and len(open_prs) > 0:
+                process_pull_requests(open_prs)
+            time.sleep(30)
+        except Exception as e:
+            print(f"ERROR {e}")
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
