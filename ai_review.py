@@ -17,8 +17,6 @@ import json
 import textwrap
 import time
 
-import requests
-
 from github_api import GithubApi, GithubConfig, GithubRepo
 from ollama_api import OllamaApi, OllamaConfig
 
