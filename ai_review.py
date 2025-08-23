@@ -152,7 +152,9 @@ def process_pull_requests(pulls):
         else:
             print("No GitHub comments.")
 
-#pylint: disable=bare-except catch any error to avoid breaking out of the loop
+# Pylint added because the loop just prints any error
+# Then waits for longer than normal to loop again
+#pylint: disable=bare-except
 def main():
     """Reads in the config then runs the loop to check specified repos 
     for pull requests then post code reviews from Ollama"""
@@ -171,7 +173,8 @@ def main():
             if open_prs is not None and len(open_prs) > 0:
                 process_pull_requests(open_prs)
             time.sleep(30)
-        except:
+        except Exception as e:
+            print(f"ERROR {e}")
             time.sleep(60)
 
 if __name__ == "__main__":
