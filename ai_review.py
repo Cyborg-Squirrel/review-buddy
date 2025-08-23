@@ -53,7 +53,7 @@ def read_config():
             raise Exception("git-token not found in config file!")
         github_token = data[GIT_TOKEN_KEY]
 
-        ollama_url, model_name = ""
+        ollama_url: str
         if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
             ollama_url = data[OLLAMA_URL_KEY]
         else:
@@ -61,6 +61,7 @@ def read_config():
 
         print(f"Ollama url: {ollama_url}")
 
+        model_name = DEFAULT_AI_MODEL
         if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
             model_name = data[AI_MODEL_NAME_KEY]
 
@@ -164,10 +165,13 @@ def main():
         print("Error while trying to read in config:", e)
         return -1
     while True:
-        open_prs = git_api.get_open_prs()
-        if open_prs is not None and len(open_prs) > 0:
-            process_pull_requests(open_prs)
-        time.sleep(30)
+        try:
+            open_prs = git_api.get_open_prs()
+            if open_prs is not None and len(open_prs) > 0:
+                process_pull_requests(open_prs)
+            time.sleep(30)
+        except:
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()

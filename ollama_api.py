@@ -41,6 +41,7 @@ class OllamaApi:
                            data=json.dumps(request),
                            stream=True,
                            timeout=req_timeout) as r:
+            r.raise_for_status()
             for line in r.iter_lines():
                 if line:
                     chunk = json.loads(line)
@@ -58,7 +59,7 @@ class OllamaApi:
         payload = {
             "model": model_name,
             "prompt": request,
-            "stream": False
+            "stream": True
         }
 
         return self.__do_streaming_request(generate_api_url, payload)
