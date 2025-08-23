@@ -8,6 +8,7 @@
 #pylint: disable=too-few-public-methods
 
 import json
+from typing import Any
 
 import requests
 
@@ -57,7 +58,7 @@ class GithubApi:
         r.raise_for_status()
         return r.json()
 
-    def __do_json_api_get(self, url):
+    def __do_json_api_get(self, url) -> Any:
         """Does a Github api request, returns the response json"""
         r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
         r.raise_for_status()
@@ -70,17 +71,11 @@ class GithubApi:
         return r.text
 
     def get_open_prs(self):
-        """Checks the configured repositories for open pull requests to review 
-        and sends git diff to Ollama for review"""
+        """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
-            pulls = self.__do_json_api_get(open_prs_url)
-
-            if not pulls:
-                print("No open pull requests.")
-                return []
-            return pulls
+            return self.__do_json_api_get(open_prs_url)
 
     def get_comments_for_pr(self, pr):
         """Gets all comments posted on a specified pr"""
