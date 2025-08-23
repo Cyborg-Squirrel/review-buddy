@@ -92,6 +92,7 @@ def ask_ollama_for_review(title, diff_text):
     result = r.json()
     return result.get("response", "").strip()
 
+#pylint: disable=too-many-branches
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
@@ -120,8 +121,8 @@ def read_config():
                 allowed_models.append(model)
 
         if len(allowed_models) > 0:
-            if not model_name in allowed_models:
-                raise Exception(f"{model} is not in allowed models list {allowed_models}!")
+            if model_name not in allowed_models:
+                raise Exception(f"{model_name} is not in allowed models list {allowed_models}!")
 
         if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
             raise Exception("git-username not found in config file!")
