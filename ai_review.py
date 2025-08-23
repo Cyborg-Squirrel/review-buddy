@@ -152,6 +152,7 @@ def process_pull_requests(pulls):
         else:
             print("No GitHub comments.")
 
+#pylint: disable=bare-except catch any error to avoid breaking out of the loop
 def main():
     """Reads in the config then runs the loop to check specified repos 
     for pull requests then post code reviews from Ollama"""
