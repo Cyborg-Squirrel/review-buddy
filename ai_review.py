@@ -35,9 +35,11 @@ git_username = ""
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434/api/generate"
 ollama_url = OLLAMA_DEFAULT_URL
-OLLAMA_DEFAULT_MODEL = "codellama"
+AI_MODEL_NAME_KEY = "ai-model"
+DEFAULT_AI_MODEL = "codellama"
+model_name = DEFAULT_AI_MODEL
 ALLOWED_MODELS_KEY = "allowed-models"
-allowed_ollama_models = [OLLAMA_DEFAULT_MODEL]
+allowed_models = []
 # ------------------------------
 
 def get_json_response_headers():
@@ -80,7 +82,7 @@ def ask_ollama_for_review(title, diff_text):
     """)
 
     payload = {
-        "model": OLLAMA_DEFAULT_MODEL,
+        "model": model_name,
         "prompt": prompt,
         "stream": False
     }
@@ -90,6 +92,7 @@ def ask_ollama_for_review(title, diff_text):
     result = r.json()
     return result.get("response", "").strip()
 
+#pylint: disable=too-many-branches
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
@@ -108,10 +111,18 @@ def read_config():
         else:
             ollama_url = OLLAMA_DEFAULT_URL
 
+        global model_name
+        if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
+            model_name = data[AI_MODEL_NAME_KEY]
+
         if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
-            allowed_ollama_models.clear()
+            allowed_models.clear()
             for model in data[ALLOWED_MODELS_KEY]:
-                allowed_ollama_models.append(model)
+                allowed_models.append(model)
+
+        if len(allowed_models) > 0:
+            if model_name not in allowed_models:
+                raise Exception(f"{model_name} is not in allowed models list {allowed_models}!")
 
         if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
             raise Exception("git-username not found in config file!")
