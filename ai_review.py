@@ -24,8 +24,6 @@ from github_api import GithubApi, GithubConfig, GithubRepo
 # ------------------------------
 # CONFIG
 # ------------------------------
-# Add Gitlab support, add api-name to config to allow github/gitlab to be specified
-api_name = "git"
 REPO_OWNER_KEY = "owner"
 REPO_NAME_KEY = "name"
 REPO_LIST_KEY = "repositories"
@@ -62,7 +60,7 @@ def ask_ollama_for_review(title, diff_text):
         "stream": False
     }
 
-    r = requests.post(ollama_url, json=payload, timeout=60)
+    r = requests.post(ollama_url, json=payload, timeout=60*3)
     r.raise_for_status()
     result = r.json()
     return result.get("response", "").strip()
