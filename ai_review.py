@@ -17,7 +17,7 @@ import json
 import textwrap
 import time
 
-from github_api import GitHubApi, GitHubConfig, GitHubRepo
+from github_api import GitHubApi, GitHubApiConfig, GitHubRepo
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -29,7 +29,7 @@ REPO_LIST_KEY = "repositories"
 GIT_TOKEN_KEY = "git-token"
 GITHUB_USERNAME_KEY = "git-username"
 git_username: str
-config: GitHubConfig
+config: GitHubApiConfig
 git_api: GitHubApi
 
 OLLAMA_URL_KEY = "ollama-url"
@@ -105,7 +105,7 @@ def read_config():
                             "list of objects with a name and owner.")
 
         global config, git_api
-        config = GitHubConfig(repo_list=repo_list, token=github_token)
+        config = GitHubApiConfig(repo_list=repo_list, token=github_token)
         git_api = GitHubApi(config=config)
 
 def do_review(pull) -> str:

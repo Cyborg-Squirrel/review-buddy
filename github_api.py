@@ -9,6 +9,7 @@ import requests
 
 @dataclass
 class GitHubUser:
+    """A GitHub user retrieved from the API"""
     login: str
 
 @dataclass
@@ -18,7 +19,7 @@ class GitHubRepo:
     owner: GitHubUser
 
 @dataclass
-class GitHubConfig:
+class GitHubApiConfig:
     """GitHubApi config - contains an auth token and repos in use"""
     repo_list: list[GitHubRepo]
     token: str
@@ -65,7 +66,7 @@ class GitHubApi:
     """API for interacting with GitHub"""
 
     __API_BASE = "https://api.github.com"
-    config: GitHubConfig
+    config: GitHubApiConfig
 
     def __init__(self, config):
         self.config = config
@@ -129,10 +130,11 @@ class GitHubApi:
     def get_changed_files(self, pr: GitHubPr) -> list[GitHubChangedFile]:
         """Gets the files changed in the PR"""
         changed_files = list[GitHubChangedFile]()
-        pr_files_url = f"{self.__API_BASE}/repos/{pr.owner.login}/{pr.repo.name}/pulls/{pr.number}/files"
+        pr_files_url = f"""{self.__API_BASE}/repos/{pr.owner.login}/{pr.repo.name}
+                            /pulls/{pr.number}/files"""
         pr_changed_files = self.__do_json_api_get(pr_files_url)
-        for pr_changed_files in pr_changed_files:
-            changed_files.append(GitHubChangedFile(**json.loads(pr_changed_files)))
+        for pr_changed_file in pr_changed_files:
+            changed_files.append(GitHubChangedFile(**json.loads(pr_changed_file)))
         return changed_files
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
