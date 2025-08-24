@@ -5,45 +5,36 @@ from dataclasses import dataclass
 from typing import Any
 
 import requests
+from dataclasses_json import Undefined, dataclass_json
 
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitHubUser:
     """A GitHub user retrieved from the API"""
     login: str
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitHubRepo:
-    """A single Git repo - contains the owner and the name of the repository"""
+    """A Git repo - contains the owner and the name of the repository"""
     name: str
     owner: GitHubUser
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
-class GitHubApiConfig:
-    """GitHubApi config - contains an auth token and repos in use"""
-    repo_list: list[GitHubRepo]
-    token: str
+class GitHubHead:
+    """A Git head - contains information about the repo"""
+    repo: GitHubRepo
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass
 class GitHubComment:
-    """GitHub pull request comment model.
+    """GitHub pull request comment model"""
+    user: GitHubUser
+    body: str
 
-    Attributes:
-        json_data (dict): The raw JSON data from the GitHub API.
-    """
-
-    json_data: dict
-
-    def __init__(self, json_data: dict):
-        self.json_data = json_data
-
-    def get_username(self) -> str:
-        """Gets the username of the comment author"""
-        return self.json_data['user']['login']
-
-    def get_comment_body(self) -> str:
-        """Gets the comment text content"""
-        return self.json_data['body']
-
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitHubPr:
     """GitHub pull request model"""
@@ -51,16 +42,21 @@ class GitHubPr:
     number: int
     title: str
     comments_url: str
-    owner: GitHubUser
-    repo: GitHubRepo
+    head: GitHubHead
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitHubChangedFile:
     """GitHub API list of changed files"""
-
     filename: str
     raw_url: str
     patch: str
+
+@dataclass
+class GitHubApiConfig:
+    """GitHubApi config - contains an auth token and repos in use"""
+    repo_list: list[GitHubRepo]
+    token: str
 
 class GitHubApi:
     """API for interacting with GitHub"""
@@ -102,39 +98,33 @@ class GitHubApi:
     def get_open_prs(self) -> list[GitHubPr]:
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
-        open_prs = list[GitHubPr]()
+        pr_list = list[GitHubPr]()
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             open_prs_for_repo = self.__do_json_api_get(open_prs_url)
             if open_prs_for_repo is not None and len(open_prs_for_repo) > 0:
-                for open_pr in open_prs_for_repo:
-                    open_prs.append(GitHubPr(**json.loads(open_pr)))
-        return open_prs
+                pr_list.extend(GitHubPr.schema().load(open_prs_for_repo, many=True))
+        return pr_list
 
     def get_comments_for_pr(self, pr: GitHubPr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
         print(f"\n=== PR #{pr.number}: {pr.title} ===")
         comments = self.__do_json_api_get(pr.comments_url)
-        github_comments = list[GitHubComment]()
-        for comment in comments:
-            github_comments.append(GitHubComment(comment))
-        return github_comments
+        return GitHubComment.schema().load(comments, many=True)
 
-    def get_pr_diff(self, pr) -> str:
+    def get_pr_diff(self, pr: GitHubPr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
-        pr_url = pr["url"]
         diff_headers = self.__get_json_response_headers()
         diff_headers["Accept"] = "application/vnd.github.diff"
-        return self.__do_json_api_request_raw_response(pr_url, diff_headers)
+        return self.__do_json_api_request_raw_response(pr.url, diff_headers)
 
     def get_changed_files(self, pr: GitHubPr) -> list[GitHubChangedFile]:
         """Gets the files changed in the PR"""
         changed_files = list[GitHubChangedFile]()
-        pr_files_url = f"""{self.__API_BASE}/repos/{pr.owner.login}/{pr.repo.name}
+        pr_files_url = f"""{self.__API_BASE}/repos/{pr.repo.owner.login}/{pr.repo.name}
                             /pulls/{pr.number}/files"""
         pr_changed_files = self.__do_json_api_get(pr_files_url)
-        for pr_changed_file in pr_changed_files:
-            changed_files.append(GitHubChangedFile(**json.loads(pr_changed_file)))
+        GitHubChangedFile.from_dict(pr_changed_files, many=True)
         return changed_files
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
@@ -143,7 +133,7 @@ class GitHubApi:
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(file.raw_url, raw_headers)
 
-    def post_comment(self, pr, content: str):
+    def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
-        comments_url = pr["comments_url"]
+        comments_url = pr.comments_url
         self.__do_json_api_post(comments_url, {'body': content})
