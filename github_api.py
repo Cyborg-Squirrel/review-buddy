@@ -59,7 +59,7 @@ class GitHubApi:
     def get_open_prs(self):
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
-        open_prs = list()
+        open_prs = []
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             open_prs_for_repo = self.__do_json_api_get(open_prs_url)

@@ -53,3 +53,7 @@ class OllamaApi:
         }
 
         return self.__do_streaming_request(generate_api_url, payload)
+    
+    def chat(self, new_chat_message: str, model: Optional[str] = None):
+        # TODO: chat history, then send to /chat api endpoint
+        return self.do_generation(new_chat_message, model)
