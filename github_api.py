@@ -26,11 +26,13 @@ class GitHubComment:
 
     def __init__(self, json_data: dict):
         self.json_data = json_data
-    
-    def get_username(self):
+
+    def get_username(self) -> str:
+        """Gets the username of the comment author"""
         return self.json_data['user']['login']
-    
-    def get_comment_body(self):
+
+    def get_comment_body(self) -> str:
+        """Gets the comment text content"""
         return self.json_data['body']
 
 class GitHubApi:
