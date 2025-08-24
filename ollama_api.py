@@ -8,20 +8,17 @@
 #pylint: disable=too-few-public-methods
 
 import json
+from dataclasses import dataclass
 from typing import Optional
 
 import requests
 
 
+@dataclass
 class OllamaConfig:
     """Ollama config"""
-
     host: str
     default_model: str
-
-    def __init__(self, host: str, default_model: str):
-        self.host = host
-        self.default_model = default_model
 
 class OllamaApi:
     """API for interacting with Ollama"""

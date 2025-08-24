@@ -17,7 +17,7 @@ import json
 import textwrap
 import time
 
-from github_api import GithubApi, GithubConfig, GithubRepo
+from github_api import GitHubApi, GitHubConfig, GitHubRepo
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -29,8 +29,8 @@ REPO_LIST_KEY = "repositories"
 GIT_TOKEN_KEY = "git-token"
 GITHUB_USERNAME_KEY = "git-username"
 git_username: str
-config: GithubConfig
-git_api: GithubApi
+config: GitHubConfig
+git_api: GitHubApi
 
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
@@ -98,15 +98,15 @@ def read_config():
                 raise Exception("Repository owner is not set! " +
                                 "Please ensure it is present for all " +
                                 "entries in the repo-list.")
-            repo_list.append(GithubRepo(name=name, owner=owner))
+            repo_list.append(GitHubRepo(name=name, owner=owner))
 
         if len(repo_list) == 0:
             raise Exception("Repository list is empty! Please include a " +
                             "list of objects with a name and owner.")
 
         global config, git_api
-        config = GithubConfig(repo_list=repo_list, token=github_token)
-        git_api = GithubApi(config=config)
+        config = GitHubConfig(repo_list=repo_list, token=github_token)
+        git_api = GitHubApi(config=config)
 
 def do_review(pull) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""

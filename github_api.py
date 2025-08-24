@@ -8,36 +8,29 @@
 #pylint: disable=too-few-public-methods
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 import requests
 
 
-class GithubRepo:
+@dataclass
+class GitHubRepo:
     """A single Git repo - contains the owner and the name of the repository"""
-
     name: str
     owner: str
 
-    def __init__(self, name: str, owner: str):
-        self.name = name
-        self.owner = owner
-
-class GithubConfig:
+@dataclass
+class GitHubConfig:
     """GithubApi config - contains an auth token and repos in use"""
-
-    repo_list: list[GithubRepo]
+    repo_list: list[GitHubRepo]
     token: str
 
-    def __init__(self, repo_list: list[GithubRepo], token: str):
-        self.repo_list = repo_list
-        self.token = token
-
-class GithubApi:
+class GitHubApi:
     """API for interacting with GitHub"""
 
     __API_BASE = "https://api.github.com"
-    config: GithubConfig
+    config: GitHubConfig
 
     def __init__(self, config):
         self.config = config
@@ -73,9 +66,14 @@ class GithubApi:
     def get_open_prs(self):
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
+        open_prs = list()
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
-            return self.__do_json_api_get(open_prs_url)
+            open_prs_for_repo = self.__do_json_api_get(open_prs_url)
+            if open_prs_for_repo is not None and len(open_prs_for_repo) > 0:
+                for pr_for_repo in open_prs_for_repo:
+                    open_prs.append(pr_for_repo)
+        return open_prs
 
     def get_comments_for_pr(self, pr):
         """Gets all comments posted on a specified pr"""
