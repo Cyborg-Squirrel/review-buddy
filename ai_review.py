@@ -117,10 +117,10 @@ def do_review(pull) -> str:
     # The prompt - truncate diff to 4000 characters to avoid overly large prompt
     request = textwrap.dedent(f"""
                               You are a senior software engineer. Review the included
-                              code from a pull reuqest titled {pr_title}.
+                              code from a pull request titled {pr_title}.
                               Point out potential bugs, style issues,
                               and improvements. Include example code in review feedback.
-                              {diff[:4000]}""")
+                              {diff}""")
 
     # trim to avoid overly large prompt
     review = ollama_api.do_generation(request)
