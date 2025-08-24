@@ -17,7 +17,7 @@ import json
 import textwrap
 import time
 
-from github_api import GitHubApi, GitHubComment, GitHubConfig, GitHubRepo
+from github_api import GitHubApi, GitHubConfig, GitHubRepo
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
