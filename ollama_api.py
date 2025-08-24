@@ -1,27 +1,17 @@
 """An API class for interacting with Ollama"""
 
-# ------------------------------
-# Rationale for disabled lints
-# ------------------------------
-# too-few-public-methods: PyLint flags model type classes with less than
-# two public functions. This seems like a bad idea for a linter rule.
-#pylint: disable=too-few-public-methods
-
 import json
+from dataclasses import dataclass
 from typing import Optional
 
 import requests
 
 
+@dataclass
 class OllamaConfig:
     """Ollama config"""
-
     host: str
     default_model: str
-
-    def __init__(self, host: str, default_model: str):
-        self.host = host
-        self.default_model = default_model
 
 class OllamaApi:
     """API for interacting with Ollama"""
@@ -63,3 +53,10 @@ class OllamaApi:
         }
 
         return self.__do_streaming_request(generate_api_url, payload)
+
+    # Method is stubbed for now - will be implemented in a future branch
+    #pylint: disable=fixme
+    def chat(self, new_chat_message: str, model: Optional[str] = None):
+        """Starts or continues an existing chat with the AI"""
+        # TODO: chat history, then send to /chat api endpoint
+        return self.do_generation(new_chat_message, model)
