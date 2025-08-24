@@ -64,8 +64,7 @@ class GitHubApi:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             open_prs_for_repo = self.__do_json_api_get(open_prs_url)
             if open_prs_for_repo is not None and len(open_prs_for_repo) > 0:
-                for pr_for_repo in open_prs_for_repo:
-                    open_prs.append(pr_for_repo)
+                open_prs.extend(open_prs_for_repo)
         return open_prs
 
     def get_comments_for_pr(self, pr):
