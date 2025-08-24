@@ -1,12 +1,5 @@
 """An API class for interacting with Ollama"""
 
-# ------------------------------
-# Rationale for disabled lints
-# ------------------------------
-# too-few-public-methods: PyLint flags model type classes with less than
-# two public functions. This seems like a bad idea for a linter rule.
-#pylint: disable=too-few-public-methods
-
 import json
 from dataclasses import dataclass
 from typing import Optional
