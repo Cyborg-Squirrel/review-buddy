@@ -15,9 +15,29 @@ class GitHubRepo:
 
 @dataclass
 class GitHubConfig:
-    """GithubApi config - contains an auth token and repos in use"""
+    """GitHubApi config - contains an auth token and repos in use"""
     repo_list: list[GitHubRepo]
     token: str
+
+class GitHubComment:
+    """GitHub pull request model.
+
+    Attributes:
+        json_data (dict): The raw JSON data from the GitHub API.
+    """
+
+    json_data: dict
+
+    def __init__(self, json_data: dict):
+        self.json_data = json_data
+
+    def get_username(self) -> str:
+        """Gets the username of the comment author"""
+        return self.json_data['user']['login']
+
+    def get_comment_body(self) -> str:
+        """Gets the comment text content"""
+        return self.json_data['body']
 
 class GitHubApi:
     """API for interacting with GitHub"""
@@ -67,15 +87,19 @@ class GitHubApi:
                 open_prs.extend(open_prs_for_repo)
         return open_prs
 
-    def get_comments_for_pr(self, pr):
+    def get_comments_for_pr(self, pr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
         pr_number = pr["number"]
         pr_title = pr["title"]
         comments_url = pr["comments_url"]
         print(f"\n=== PR #{pr_number}: {pr_title} ===")
-        return self.__do_json_api_get(comments_url)
+        comments = self.__do_json_api_get(comments_url)
+        github_comments = list[GitHubComment]()
+        for comment in comments:
+            github_comments.append(GitHubComment(comment))
+        return github_comments
 
-    def get_pr_diff(self, pr):
+    def get_pr_diff(self, pr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
         pr_url = pr["url"]
         diff_headers = self.__get_json_response_headers()

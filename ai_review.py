@@ -136,8 +136,8 @@ def process_pull_requests(pulls):
             print("GitHub Comments:")
             review_requested = False
             for c in comments:
-                comment_username = c['user']['login']
-                comment_body = c['body']
+                comment_username = c.get_username()
+                comment_body = c.get_comment_body()
                 print(f"- {comment_username}: {comment_body[:140]}")
                 if git_username in comment_username:
                     review_requested = False
