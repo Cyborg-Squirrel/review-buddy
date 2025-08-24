@@ -20,7 +20,11 @@ class GitHubConfig:
     token: str
 
 class GitHubComment:
-    """GitHub pull request model"""
+    """GitHub pull request model.
+
+    Attributes:
+        json_data (dict): The raw JSON data from the GitHub API.
+    """
 
     json_data: dict
 
