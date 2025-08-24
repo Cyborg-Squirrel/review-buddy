@@ -53,7 +53,10 @@ class OllamaApi:
         }
 
         return self.__do_streaming_request(generate_api_url, payload)
-    
+
+    # Method is stubbed for now - will be implemented in a future branch
+    #pylint: disable=fixme
     def chat(self, new_chat_message: str, model: Optional[str] = None):
+        """Starts or continues an existing chat with the AI"""
         # TODO: chat history, then send to /chat api endpoint
         return self.do_generation(new_chat_message, model)
