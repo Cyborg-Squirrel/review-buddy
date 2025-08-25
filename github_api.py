@@ -6,7 +6,7 @@
 # no-member: dataclasses_json functions such as schema() get this
 # error, but the code compiles and runs.
 #
-#pylint disable=no-member
+#pylint: disable=no-member
 import json
 from dataclasses import dataclass
 from typing import Any
