@@ -46,74 +46,78 @@ allowed_models = []
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
-    with open('config.json', 'r', encoding='utf-8') as file:
-        data = json.load(file)
+    try:
+        with open('config.json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
 
-        if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
-            raise Exception("git-token not found in config file!")
-        github_token = data[GIT_TOKEN_KEY]
+            if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
+                raise Exception("git-token not found in config file!")
+            github_token = data[GIT_TOKEN_KEY]
 
-        ollama_url: str
-        if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
-            ollama_url = data[OLLAMA_URL_KEY]
-        else:
-            ollama_url = OLLAMA_DEFAULT_URL
+            ollama_url: str
+            if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
+                ollama_url = data[OLLAMA_URL_KEY]
+            else:
+                ollama_url = OLLAMA_DEFAULT_URL
 
-        print(f"Ollama url: {ollama_url}")
+            print(f"Ollama url: {ollama_url}")
 
-        model_name = DEFAULT_AI_MODEL
-        if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
-            model_name = data[AI_MODEL_NAME_KEY]
+            model_name = DEFAULT_AI_MODEL
+            if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
+                model_name = data[AI_MODEL_NAME_KEY]
 
-        global ollama_api
-        ollama_config = OllamaConfig(ollama_url, model_name)
-        ollama_api = OllamaApi(ollama_config)
+            global ollama_api
+            ollama_config = OllamaConfig(ollama_url, model_name)
+            ollama_api = OllamaApi(ollama_config)
 
-        if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
-            allowed_models.clear()
-            for model in data[ALLOWED_MODELS_KEY]:
-                allowed_models.append(model)
+            if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
+                allowed_models.clear()
+                for model in data[ALLOWED_MODELS_KEY]:
+                    allowed_models.append(model)
 
-        if len(allowed_models) > 0:
-            if model_name not in allowed_models:
-                raise Exception(f"{model_name} is not in allowed models list {allowed_models}!")
+            if len(allowed_models) > 0:
+                if model_name not in allowed_models:
+                    raise Exception(f"{model_name} is not in allowed models list {allowed_models}!")
 
-        if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
-            raise Exception("git-username not found in config file!")
+            if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
+                raise Exception("git-username not found in config file!")
 
-        global git_username
-        git_username = data[GITHUB_USERNAME_KEY]
+            global git_username
+            git_username = data[GITHUB_USERNAME_KEY]
 
-        repos = data[REPO_LIST_KEY]
-        repo_list = []
+            repos = data[REPO_LIST_KEY]
+            repo_list = []
 
-        for repo in repos:
-            name = repo[REPO_NAME_KEY]
-            if name is None or len(name) == 0:
-                raise Exception("Repository name is not set! " +
-                                "Please ensure it is present for all " +
-                                "entries in the repo-list.")
-            owner = repo[REPO_OWNER_KEY]
-            if owner is None or len(owner) == 0:
-                raise Exception("Repository owner is not set! " +
-                                "Please ensure it is present for all " +
-                                "entries in the repo-list.")
-            repo_list.append(GitHubRepo(name=name, owner=owner))
+            for repo in repos:
+                name = repo[REPO_NAME_KEY]
+                if name is None or len(name) == 0:
+                    raise Exception("Repository name is not set! " +
+                                    "Please ensure it is present for all " +
+                                    "entries in the repo-list.")
+                owner = repo[REPO_OWNER_KEY]
+                if owner is None or len(owner) == 0:
+                    raise Exception("Repository owner is not set! " +
+                                    "Please ensure it is present for all " +
+                                    "entries in the repo-list.")
+                repo_list.append(GitHubRepo(name=name, owner=owner))
 
-        if len(repo_list) == 0:
-            raise Exception("Repository list is empty! Please include a " +
-                            "list of objects with a name and owner.")
+            if len(repo_list) == 0:
+                raise Exception("Repository list is empty! Please include a " +
+                                "list of objects with a name and owner.")
 
-        global config, git_api
-        config = GitHubApiConfig(repo_list=repo_list, token=github_token)
-        git_api = GitHubApi(config=config)
+            global config, git_api
+            config = GitHubApiConfig(repo_list=repo_list, token=github_token)
+            git_api = GitHubApi(config=config)
+    except FileNotFoundError as file_not_found_err:
+        print("config.json not found! Please create it. See: config_template.json "
+              "for a starting point")
+        raise file_not_found_err
 
 def do_review(pull: GitHubPr) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     diff = git_api.get_pr_diff(pull)
     print("\nSending diff to Ollama for review...")
 
-    # The prompt - truncate diff to 4000 characters to avoid overly large prompt
     request = textwrap.dedent(f"""
                               You are a senior software engineer. Review the included
                               code from a pull request titled {pull.title}.
