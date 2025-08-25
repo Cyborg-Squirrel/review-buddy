@@ -17,7 +17,7 @@ import json
 import textwrap
 import time
 
-from github_api import GitHubApi, GitHubConfig, GitHubRepo
+from github_api import GitHubApi, GitHubApiConfig, GitHubPr, GitHubRepo
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -29,7 +29,7 @@ REPO_LIST_KEY = "repositories"
 GIT_TOKEN_KEY = "git-token"
 GITHUB_USERNAME_KEY = "git-username"
 git_username: str
-config: GitHubConfig
+config: GitHubApiConfig
 git_api: GitHubApi
 
 OLLAMA_URL_KEY = "ollama-url"
@@ -105,22 +105,21 @@ def read_config():
                             "list of objects with a name and owner.")
 
         global config, git_api
-        config = GitHubConfig(repo_list=repo_list, token=github_token)
+        config = GitHubApiConfig(repo_list=repo_list, token=github_token)
         git_api = GitHubApi(config=config)
 
-def do_review(pull) -> str:
+def do_review(pull: GitHubPr) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
-    pr_title = pull["title"]
     diff = git_api.get_pr_diff(pull)
     print("\nSending diff to Ollama for review...")
 
     # The prompt - truncate diff to 4000 characters to avoid overly large prompt
     request = textwrap.dedent(f"""
                               You are a senior software engineer. Review the included
-                              code from a pull reuqest titled {pr_title}.
+                              code from a pull request titled {pull.title}.
                               Point out potential bugs, style issues,
                               and improvements. Include example code in review feedback.
-                              {diff[:4000]}""")
+                              {diff}""")
 
     # trim to avoid overly large prompt
     review = ollama_api.do_generation(request)
@@ -136,8 +135,8 @@ def process_pull_requests(pulls):
             print("GitHub Comments:")
             review_requested = False
             for c in comments:
-                comment_username = c.get_username()
-                comment_body = c.get_comment_body()
+                comment_username = c.user.login
+                comment_body = c.body
                 print(f"- {comment_username}: {comment_body[:140]}")
                 if git_username in comment_username:
                     review_requested = False
