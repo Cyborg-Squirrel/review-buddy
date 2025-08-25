@@ -1,5 +1,12 @@
 """An API class for interacting with Github"""
 
+# ------------------------------
+# Rationale for disabled lints
+# ------------------------------
+# no-member: dataclasses_json functions such as schema() get this
+# error, but the code compiles and runs.
+#
+#pylint disable=no-member
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -121,7 +128,8 @@ class GitHubApi:
     def get_changed_files(self, pr: GitHubPr) -> list[GitHubChangedFile]:
         """Gets the files changed in the PR"""
         changed_files = list[GitHubChangedFile]()
-        pr_files_url = f"""{self.__API_BASE}/repos/{pr.repo.owner.login}/{pr.repo.name}
+        repo = pr.head.repo
+        pr_files_url = f"""{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}
                             /pulls/{pr.number}/files"""
         pr_changed_files = self.__do_json_api_get(pr_files_url)
         GitHubChangedFile.from_dict(pr_changed_files, many=True)
