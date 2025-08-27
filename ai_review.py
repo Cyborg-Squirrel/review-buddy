@@ -151,7 +151,7 @@ def process_pull_requests(pulls):
             for c in comments:
                 comment_username = c.user.login
                 comment_body = c.body
-                print(f"- {comment_username}: {comment_body[:140]}")
+                print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
                     review_requested = False
                 elif f"@{git_username}" in comment_body:
