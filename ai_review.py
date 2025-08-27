@@ -113,7 +113,7 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr) -> str:
+def do_review(pull: GitHubPr, changed_files_dict: dict[str, str]) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     diff = git_api.get_pr_diff(pull)
     print("\nSending diff to Ollama for review...")
@@ -147,7 +147,13 @@ def process_pull_requests(pulls):
                 elif f"@{git_username}" in comment_body:
                     review_requested = True
             if review_requested:
-                review_content = do_review(pr)
+                changed_files = git_api.get_changed_files(pr)
+                changed_files_dict = dict[str, str]()
+                for changed_file in changed_files:
+                    changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
+                    print(f"-- File --\n {changed_file.filename} patch {changed_file.patch}")
+                    changed_files_dict[changed_file.filename] = changed_file_text
+                review_content = do_review(pr, changed_files_dict)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
