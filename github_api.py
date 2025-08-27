@@ -30,9 +30,11 @@ class GitHubRepo:
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
-class GitHubHead:
-    """A Git head - contains information about the repo"""
+class GitHubRef:
+    """A Git ref - contains information about a ref"""
     repo: GitHubRepo
+    ref: str
+    sha: str
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -49,7 +51,10 @@ class GitHubPr:
     number: int
     title: str
     comments_url: str
-    head: GitHubHead
+    # The latest branch commit ref
+    head: GitHubRef
+    # The pull request target branch ref
+    base: GitHubRef
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -129,7 +134,7 @@ class GitHubApi:
         """Gets the files changed in the PR"""
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
-        f"/pulls/{pr.number}/files"
+            f"/pulls/{pr.number}/files"
         print(f"pr_files_url {pr_files_url}")
         pr_changed_files = self.__do_json_api_get(pr_files_url)
         return GitHubChangedFile.schema().load(pr_changed_files, many=True)
