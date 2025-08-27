@@ -148,10 +148,11 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 changed_files = git_api.get_changed_files(pr)
-                changed_files_dict = dict[str, str]()
+                print(f"changed_files {changed_files}")
+                changed_files_dict = {}
                 for changed_file in changed_files:
                     changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
-                    print(f"-- File --\n {changed_file.filename} patch {changed_file.patch}")
+                    print(f"-- File -- {changed_file.filename} patch {changed_file.patch}")
                     changed_files_dict[changed_file.filename] = changed_file_text
                 review_content = do_review(pr, changed_files_dict)
                 git_api.post_comment(pr, review_content)

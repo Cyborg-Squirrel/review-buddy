@@ -131,6 +131,7 @@ class GitHubApi:
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
         f"/pulls/{pr.number}/files"
+        print(f"pr_files_url {pr_files_url}")
         pr_changed_files = self.__do_json_api_get(pr_files_url)
         GitHubChangedFile.schema().load(pr_changed_files, many=True)
         return changed_files
