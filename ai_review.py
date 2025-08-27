@@ -118,8 +118,8 @@ def do_review(pull: GitHubPr, changed_files_dict: list[tuple[GitHubChangedFile, 
     """Sends the git diff to Ollama for review, returns the review text."""
     description_of_changes = ""
     for changed_file in changed_files_dict:
-        description_of_changes += f"File name {changed_file[0].filename} full file contents "\
-            f"{changed_file[1]} the propsed changes {changed_file[0].patch}\n"
+        description_of_changes += f"File name: {changed_file[0].filename} the code\n "\
+            f"{changed_file[1]}\nthe propsed changes are as follows\n{changed_file[0].patch}\n"
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled {pull.title}. Point out "\
                               "potential bugs, style issues, and improvements. "\
