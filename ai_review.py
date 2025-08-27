@@ -114,16 +114,15 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, changed_files_dict: list[tuple[GitHubChangedFile, str]]) -> str:
+def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
-    description_of_changes = ""
-    for changed_file in changed_files_dict:
-        description_of_changes += f"File name: {changed_file[0].filename} the code\n "\
-            f"{changed_file[1]}\nthe propsed changes are as follows\n{changed_file[0].patch}\n"
+    
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled {pull.title}. Point out "\
-                              "potential bugs, style issues, and improvements. "\
+                              "potential bugs, style issues, and improvements."\
                               "Include example code in review feedback. "\
+                              "You only need to review the changes." \
+                              "The entire file's code is only included for context."\
                               f"{description_of_changes}")
 
     print("\nSending pull request to Ollama for review...")
@@ -131,6 +130,13 @@ def do_review(pull: GitHubPr, changed_files_dict: list[tuple[GitHubChangedFile, 
     print("\n--- Ollama Review ---")
     print(review)
     return review
+
+def create_description_of_changes(changed_files_dict: list[tuple[GitHubChangedFile, str]]):
+    description_of_changes = ""
+    for changed_file in changed_files_dict:
+        description_of_changes += f"File name: {changed_file[0].filename} the entire file's code\n "\
+            f"{changed_file[1]}\nthe changes are as follows\n{changed_file[0].patch}\n"
+    return description_of_changes
 
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
@@ -153,7 +159,8 @@ def process_pull_requests(pulls):
                 for changed_file in changed_files:
                     changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
                     changed_files_list.append((changed_file, changed_file_text))
-                review_content = do_review(pr, changed_files_list)
+                description_of_changes = create_description_of_changes(changed_files_list)
+                review_content = do_review(pr, description_of_changes)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
