@@ -125,7 +125,8 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
                               "The entire file's code is only included for context."\
                               f"{description_of_changes}")
 
-    print("\nSending pull request to Ollama for review...")
+    print("\n")
+    print(f"Sending pull request {pull.title} to Ollama for review...")
     review = ollama_api.do_generation(prompt)
     print("\n--- Ollama Review ---")
     print(review)
