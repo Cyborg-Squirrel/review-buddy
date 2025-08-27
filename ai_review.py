@@ -120,7 +120,8 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
                               f"pull request titled {pull.title}. Point out "\
                               "potential bugs, style issues, and improvements."\
                               "Include example code in review feedback. "\
-                              "You only need to review the changes." \
+                              "You only need to review the changes, " \
+                              "which are included in patch format."\
                               "The entire file's code is only included for context."\
                               f"{description_of_changes}")
 
@@ -131,15 +132,17 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     return review
 
 def create_description_of_changes(
-        changed_files_dict: list[tuple[GitHubChangedFile, str]]
-        ):
+        changed_files: list[tuple[GitHubChangedFile, str]]
+) -> str:
     """Creates a description of all changes in changed_files_dict."""
-    description_of_changes = ""
-    for changed_file in changed_files_dict:
-        description_of_changes += f"File name: {changed_file[0].filename}\n"\
-            "the entire file's code\n {changed_file[1]}\n"\
-            f"the changes are as follows\n{changed_file[0].patch}\n"
-    return description_of_changes
+    desc = []
+    for changed_file, full_file_text in changed_files:
+        desc.append(
+            f"File name: {changed_file.filename}\n"
+            f"The file's code:\n{full_file_text}\n"
+            f"Patch:\n{changed_file.patch}\n"
+        )
+    return "\n".join(desc)
 
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
