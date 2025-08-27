@@ -133,6 +133,7 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
 def create_description_of_changes(
         changed_files_dict: list[tuple[GitHubChangedFile, str]]
         ):
+    """Creates a description of all changes in changed_files_dict."""
     description_of_changes = ""
     for changed_file in changed_files_dict:
         description_of_changes += f"File name: {changed_file[0].filename}\n"\
