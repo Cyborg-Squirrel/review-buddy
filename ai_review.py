@@ -17,7 +17,8 @@ import json
 import textwrap
 import time
 
-from github_api import GitHubApi, GitHubApiConfig, GitHubPr, GitHubRepo
+from github_api import (GitHubApi, GitHubApiConfig, GitHubChangedFile,
+                        GitHubPr, GitHubRepo)
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -91,42 +92,42 @@ def read_config():
             for repo in repos:
                 name = repo[REPO_NAME_KEY]
                 if name is None or len(name) == 0:
-                    raise Exception("Repository name is not set! " +
-                                    "Please ensure it is present for all " +
+                    raise Exception("Repository name is not set! "\
+                                    "Please ensure it is present for all "\
                                     "entries in the repo-list.")
                 owner = repo[REPO_OWNER_KEY]
                 if owner is None or len(owner) == 0:
                     raise Exception("Repository owner is not set! " +
-                                    "Please ensure it is present for all " +
+                                    "Please ensure it is present for all "\
                                     "entries in the repo-list.")
                 repo_list.append(GitHubRepo(name=name, owner=owner))
 
             if len(repo_list) == 0:
-                raise Exception("Repository list is empty! Please include a " +
+                raise Exception("Repository list is empty! Please include a "\
                                 "list of objects with a name and owner.")
 
             global config, git_api
             config = GitHubApiConfig(repo_list=repo_list, token=github_token)
             git_api = GitHubApi(config=config)
     except FileNotFoundError as file_not_found_err:
-        print("config.json not found! Please create it. See: config_template.json "
+        print("config.json not found! Please create it. See: config_template.json "\
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, changed_files_dict: dict[str, str]) -> str:
+def do_review(pull: GitHubPr, changed_files_dict: list[tuple[GitHubChangedFile, str]]) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
-    diff = git_api.get_pr_diff(pull)
-    print("\nSending diff to Ollama for review...")
+    description_of_changes = ""
+    for changed_file in changed_files_dict:
+        description_of_changes += f"File name {changed_file[0].filename} full file contents "\
+            f"{changed_file[1]} the propsed changes {changed_file[0].patch}\n"
+    prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
+                              f"pull request titled {pull.title}. Point out "\
+                              "potential bugs, style issues, and improvements. "\
+                              "Include example code in review feedback. "\
+                              f"{description_of_changes}")
 
-    request = textwrap.dedent(f"""
-                              You are a senior software engineer. Review the included
-                              code from a pull request titled {pull.title}.
-                              Point out potential bugs, style issues,
-                              and improvements. Include example code in review feedback.
-                              {diff}""")
-
-    # trim to avoid overly large prompt
-    review = ollama_api.do_generation(request)
+    print("\nSending pull request to Ollama for review...")
+    review = ollama_api.do_generation(prompt)
     print("\n--- Ollama Review ---")
     print(review)
     return review
@@ -148,13 +149,11 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 changed_files = git_api.get_changed_files(pr)
-                print(f"changed_files {changed_files}")
-                changed_files_dict = {}
+                changed_files_list = []
                 for changed_file in changed_files:
                     changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
-                    print(f"-- File -- {changed_file.filename} patch {changed_file.patch}")
-                    changed_files_dict[changed_file.filename] = changed_file_text
-                review_content = do_review(pr, changed_files_dict)
+                    changed_files_list.append((changed_file, changed_file_text))
+                review_content = do_review(pr, changed_files_list)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +

@@ -127,14 +127,12 @@ class GitHubApi:
 
     def get_changed_files(self, pr: GitHubPr) -> list[GitHubChangedFile]:
         """Gets the files changed in the PR"""
-        changed_files = list[GitHubChangedFile]()
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
         f"/pulls/{pr.number}/files"
         print(f"pr_files_url {pr_files_url}")
         pr_changed_files = self.__do_json_api_get(pr_files_url)
-        GitHubChangedFile.schema().load(pr_changed_files, many=True)
-        return changed_files
+        return GitHubChangedFile.schema().load(pr_changed_files, many=True)
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
         """Gets the entire file contents"""
