@@ -116,7 +116,6 @@ def read_config():
 
 def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
-    
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled {pull.title}. Point out "\
                               "potential bugs, style issues, and improvements."\
@@ -131,11 +130,14 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     print(review)
     return review
 
-def create_description_of_changes(changed_files_dict: list[tuple[GitHubChangedFile, str]]):
+def create_description_of_changes(
+        changed_files_dict: list[tuple[GitHubChangedFile, str]]
+        ):
     description_of_changes = ""
     for changed_file in changed_files_dict:
-        description_of_changes += f"File name: {changed_file[0].filename} the entire file's code\n "\
-            f"{changed_file[1]}\nthe changes are as follows\n{changed_file[0].patch}\n"
+        description_of_changes += f"File name: {changed_file[0].filename}\n"\
+            "the entire file's code\n {changed_file[1]}\n"\
+            f"the changes are as follows\n{changed_file[0].patch}\n"
     return description_of_changes
 
 def process_pull_requests(pulls):
