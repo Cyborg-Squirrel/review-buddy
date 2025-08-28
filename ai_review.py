@@ -100,7 +100,7 @@ def read_config():
                     raise Exception("Repository owner is not set! " +
                                     "Please ensure it is present for all "\
                                     "entries in the repo-list.")
-                repo_list.append(GitHubRepo(name=name, owner=owner))
+                repo_list.append(GitHubRepo(name=name, owner=owner, url=""))
 
             if len(repo_list) == 0:
                 raise Exception("Repository list is empty! Please include a "\
