@@ -26,7 +26,7 @@ class GitHubUser:
 class GitHubRepo:
     """A Git repo - contains the owner and the name of the repository"""
     name: str
-    url: str
+    html_url: str
     owner: GitHubUser
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -64,7 +64,7 @@ class GitHubChangedFile:
     filename: str
     raw_url: str
     patch: str
-    previous_filename: Optional[str]
+    previous_filename: Optional[str] = None
 
 @dataclass
 class GitHubApiConfig:
@@ -149,7 +149,7 @@ class GitHubApi:
     def get_upstream_file_whole_contents(self, pr: GitHubPr, file: GitHubChangedFile) -> str:
         """Gets the entire file contents of the file from the source branch"""
         filename = file.filename if file.previous_filename is None else file.previous_filename
-        request_url = f"{pr.base.repo.url}/{pr.base.ref}/{filename}"
+        request_url = f"{pr.base.repo.html_url}/raw/{pr.base.ref}/{filename}"
         raw_headers = self.__get_json_response_headers()
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(request_url, raw_headers)

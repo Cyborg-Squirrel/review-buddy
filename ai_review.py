@@ -100,7 +100,7 @@ def read_config():
                     raise Exception("Repository owner is not set! " +
                                     "Please ensure it is present for all "\
                                     "entries in the repo-list.")
-                repo_list.append(GitHubRepo(name=name, owner=owner, url=""))
+                repo_list.append(GitHubRepo(name=name, owner=owner, html_url=""))
 
             if len(repo_list) == 0:
                 raise Exception("Repository list is empty! Please include a "\
@@ -132,17 +132,12 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     return review
 
 def create_description_of_changes(
-        changed_files_dict: dict[GitHubChangedFile, tuple[str, str]]
+        file: GitHubChangedFile, upstream_file_text: str, changed_file_text: str
 ) -> str:
     """Creates a description of all changes in changed_files_dict."""
-    desc = []
-    for changed_file in changed_files_dict:
-        desc.append(
-            f"File name: {changed_file.filename}\n"\
-            f"The code: {changed_files_dict[changed_file][0]}\n"\
-            f"The proposed code changes: {changed_files_dict[changed_file][1]}\n"\
-        )
-    return "\n".join(desc)
+    return f"File name:\n{file.filename}\n"\
+            f"The code:\n{upstream_file_text}\n"\
+            f"The proposed code changes:\n{changed_file_text}\n"\
 
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
@@ -161,13 +156,17 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 changed_files = git_api.get_changed_files(pr)
-                changed_files_dict = {}
+                description_of_changes_list = []
                 for changed_file in changed_files:
-                    changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
-                    upstream_file_text = git_api.get_upstream_file_whole_contents(pr, changed_file)
-                    changed_files_dict[changed_file] = (upstream_file_text, changed_file_text)
-                description_of_changes = create_description_of_changes(changed_files_dict)
-                review_content = do_review(pr, description_of_changes)
+                    changed_file_text = git_api.get_changed_file_whole_contents(
+                        changed_file)
+                    upstream_file_text = git_api.get_upstream_file_whole_contents(
+                        pr, changed_file)
+                    description_of_changes = create_description_of_changes(
+                        changed_file, upstream_file_text, changed_file_text)
+                    description_of_changes_list.append(description_of_changes)
+                code_changes_prompt_text = "\n".join(description_of_changes_list)
+                review_content = do_review(pr, code_changes_prompt_text)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
