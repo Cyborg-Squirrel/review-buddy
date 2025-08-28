@@ -9,7 +9,7 @@
 #pylint: disable=no-member
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from dataclasses_json import Undefined, dataclass_json
@@ -26,6 +26,7 @@ class GitHubUser:
 class GitHubRepo:
     """A Git repo - contains the owner and the name of the repository"""
     name: str
+    url: str
     owner: GitHubUser
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -63,6 +64,7 @@ class GitHubChangedFile:
     filename: str
     raw_url: str
     patch: str
+    previous_filename: Optional[str]
 
 @dataclass
 class GitHubApiConfig:
@@ -143,6 +145,14 @@ class GitHubApi:
         raw_headers = self.__get_json_response_headers()
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(file.raw_url, raw_headers)
+
+    def get_upstream_file_whole_contents(self, pr: GitHubPr, file: GitHubChangedFile) -> str:
+        """Gets the entire file contents of the file from the source branch"""
+        filename = file.filename if file.previous_filename is None else file.previous_filename
+        request_url = f"{pr.base.repo.url}/{pr.base.ref}/{filename}"
+        raw_headers = self.__get_json_response_headers()
+        raw_headers.pop("Accept")
+        return self.__do_json_api_request_raw_response(request_url, raw_headers)
 
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
