@@ -118,10 +118,11 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled {pull.title}. Point out "\
-                              "potential bugs, style issues, and improvements."\
-                              "Include example code in review feedback. "\
-                              "You only need to review the changes, " \
-                              "which are included in patch format."\
+                              "potential bugs, style issues, and improvements. "\
+                              "You do not need to summarize the changes. "\
+                              "Include example code in your feedback. "\
+                              "The original and proposed file contents are included below. " \
+                              "Only review the code which is changed in the proposed changes.\n"\
                               f"{description_of_changes}")
 
     print("\n")
@@ -191,9 +192,11 @@ def main():
         return -1
     while True:
         try:
+            print("Checking repositories for open PRs")
             open_prs = git_api.get_open_prs()
             if open_prs is not None and len(open_prs) > 0:
                 process_pull_requests(open_prs)
+            print("Waiting for 30 seconds")
             time.sleep(30)
         except Exception as e:
             print(f"ERROR {e}")
