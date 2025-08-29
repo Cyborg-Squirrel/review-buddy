@@ -136,7 +136,7 @@ def create_description_of_changes(
     """Creates a description of all changes in changed_files_dict."""
     return f"File name:\n{file.filename}\n"\
             f"The proposed code changes:\n{changed_file_text}\n"\
-  
+
 def do_review_with_full_file(pr: GitHubPr):
     """Collects"""
     changed_files = git_api.get_changed_files(pr)
