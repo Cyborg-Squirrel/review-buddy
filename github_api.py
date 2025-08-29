@@ -96,7 +96,7 @@ class GitHubApi:
             return '; rel="next"' in headers.get('Link')
         return False
 
-    def __do_json_api_post_json(self, url, request):
+    def __do_post(self, url, request):
         """POSTs a Github api request, returns the response json"""
         req = json.dumps(request)
         print(f"Request: {req}")
@@ -190,4 +190,4 @@ class GitHubApi:
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
-        self.__do_json_api_post_json(comments_url, {'body': content})
+        self.__do_post(comments_url, {'body': content})
