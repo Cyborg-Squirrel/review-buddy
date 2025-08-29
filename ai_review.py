@@ -114,16 +114,14 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, description_of_changes: str) -> str:
+def do_review(pull: GitHubPr, code_changes: str) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
-                              f"pull request titled {pull.title}. Point out "\
+                              f"pull request titled \"{pull.title}\". Point out "\
                               "potential bugs, style issues, and improvements. "\
                               "You do not need to summarize the changes. "\
-                              "Include example code in your feedback. "\
-                              "The original and proposed file contents are included below. " \
-                              "Only review the code which is changed in the proposed changes.\n"\
-                              f"{description_of_changes}")
+                              "Include example code in your feedback.\n"\
+                              f"{code_changes}")
 
     print("\n")
     print(f"Sending pull request {pull.title} to Ollama for review...")
@@ -133,12 +131,22 @@ def do_review(pull: GitHubPr, description_of_changes: str) -> str:
     return review
 
 def create_description_of_changes(
-        file: GitHubChangedFile, upstream_file_text: str, changed_file_text: str
+        file: GitHubChangedFile, changed_file_text: str
 ) -> str:
     """Creates a description of all changes in changed_files_dict."""
     return f"File name:\n{file.filename}\n"\
-            f"The code:\n{upstream_file_text}\n"\
             f"The proposed code changes:\n{changed_file_text}\n"\
+  
+def do_review_with_full_file(pr: GitHubPr):
+    """Collects"""
+    changed_files = git_api.get_changed_files(pr)
+    description_of_changes_list = []
+    for changed_file in changed_files:
+        changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
+        description_of_changes = create_description_of_changes(changed_file, changed_file_text)
+        description_of_changes_list.append(description_of_changes)
+    code_changes_prompt_text = "\n".join(description_of_changes_list)
+    return do_review(pr, code_changes_prompt_text)
 
 def process_pull_requests(pulls):
     """Checks comments on pull requests and requests Ollama for code reviews"""
@@ -156,18 +164,9 @@ def process_pull_requests(pulls):
                 elif f"@{git_username}" in comment_body:
                     review_requested = True
             if review_requested:
-                changed_files = git_api.get_changed_files(pr)
-                description_of_changes_list = []
-                for changed_file in changed_files:
-                    changed_file_text = git_api.get_changed_file_whole_contents(
-                        changed_file)
-                    upstream_file_text = git_api.get_upstream_file_whole_contents(
-                        pr, changed_file)
-                    description_of_changes = create_description_of_changes(
-                        changed_file, upstream_file_text, changed_file_text)
-                    description_of_changes_list.append(description_of_changes)
-                code_changes_prompt_text = "\n".join(description_of_changes_list)
-                review_content = do_review(pr, code_changes_prompt_text)
+                diff = git_api.get_pr_diff(pr)
+                prompt_text = f"Code diff\n{diff}"
+                review_content = do_review(pr, prompt_text)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
