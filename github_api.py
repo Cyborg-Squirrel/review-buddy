@@ -56,7 +56,6 @@ class GitHubPr:
     head: GitHubRef
     # The pull request target branch ref
     base: GitHubRef
-    comments: int
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -91,9 +90,10 @@ class GitHubApi:
             }
 
     def __paginated_response_has_more_pages(self, headers) -> bool:
-        link_header = headers.get('Link')
-        if link_header is not None:
-            return '; rel="next"' in link_header
+        """Checks if the GitHub API response indicates there are more pages"""
+        link_header_present = 'Link' in headers.keys()
+        if link_header_present:
+            return '; rel="next"' in headers.get('Link')
         return False
 
     def __do_json_api_post_json(self, url, request):
@@ -146,11 +146,11 @@ class GitHubApi:
         page = 0
         while has_pages_remaining:
             page = page + 1
-            comments_url_page = f"{pr.comments_url}&page={page}"
-            comments_response = self.__do_json_api_get_json(comments_url_page)
+            comments_url_page = f"{pr.comments_url}?page={page}"
+            comments_response = self.__do_json_api_get(comments_url_page)
             has_pages_remaining = self.__paginated_response_has_more_pages(
                 comments_response.headers)
-            comments.extend(GitHubComment.schema().load(comments, many=True))
+            comments.extend(GitHubComment.schema().load(comments_response.json(), many=True))
         return comments
 
     def get_pr_diff(self, pr: GitHubPr) -> str:
