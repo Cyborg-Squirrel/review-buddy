@@ -115,7 +115,7 @@ class GitHubApi:
         r = requests.get(url, headers=headers, timeout=5)
         r.raise_for_status()
         return r.text
-    
+
     def __do_paginated_request(self, url: str, page_param: str) -> list:
         response_list = []
         has_pages_remaining = True
