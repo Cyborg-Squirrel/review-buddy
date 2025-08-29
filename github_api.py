@@ -56,6 +56,7 @@ class GitHubPr:
     head: GitHubRef
     # The pull request target branch ref
     base: GitHubRef
+    comments: int
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -89,7 +90,13 @@ class GitHubApi:
             "X-GitHub-Api-Version": "2022-11-28"
             }
 
-    def __do_json_api_post(self, url, request):
+    def __paginated_response_has_more_pages(self, headers) -> bool:
+        link_header = headers.get('Link')
+        if link_header is not None:
+            return '; rel="next"' in link_header
+        return False
+
+    def __do_json_api_post_json(self, url, request):
         """POSTs a Github api request, returns the response json"""
         req = json.dumps(request)
         print(f"Request: {req}")
@@ -97,11 +104,17 @@ class GitHubApi:
         r.raise_for_status()
         return r.json()
 
-    def __do_json_api_get(self, url) -> Any:
+    def __do_json_api_get_json(self, url) -> Any:
         """Does a Github api request, returns the response json"""
         r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
         r.raise_for_status()
         return r.json()
+
+    def __do_json_api_get(self, url) -> requests.Response:
+        """Does a Github api request, returns the response json"""
+        r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
+        r.raise_for_status()
+        return r
 
     def __do_json_api_request_raw_response(self, url, headers):
         """Does a Github api request, returns the raw text"""
@@ -115,16 +128,30 @@ class GitHubApi:
         pr_list = []
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
-            open_prs_for_repo = self.__do_json_api_get(open_prs_url)
-            if open_prs_for_repo is not None and len(open_prs_for_repo) > 0:
-                pr_list.extend(GitHubPr.schema().load(open_prs_for_repo, many=True))
+            has_pages_remaining = True
+            page = 0
+            while has_pages_remaining:
+                page = page + 1
+                open_prs_url_page = f"{open_prs_url}&page={page}"
+                open_prs_for_repo_response = self.__do_json_api_get(open_prs_url_page)
+                has_pages_remaining = self.__paginated_response_has_more_pages(
+                    open_prs_for_repo_response.headers)
+                pr_list.extend(GitHubPr.schema().load(open_prs_for_repo_response.json(), many=True))
         return pr_list
 
     def get_comments_for_pr(self, pr: GitHubPr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
-        print(f"\n=== PR #{pr.number}: {pr.title} ===")
-        comments = self.__do_json_api_get(pr.comments_url)
-        return GitHubComment.schema().load(comments, many=True)
+        comments = []
+        has_pages_remaining = True
+        page = 0
+        while has_pages_remaining:
+            page = page + 1
+            comments_url_page = f"{pr.comments_url}&page={page}"
+            comments_response = self.__do_json_api_get_json(comments_url_page)
+            has_pages_remaining = self.__paginated_response_has_more_pages(
+                comments_response.headers)
+            comments.extend(GitHubComment.schema().load(comments, many=True))
+        return comments
 
     def get_pr_diff(self, pr: GitHubPr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
@@ -137,7 +164,7 @@ class GitHubApi:
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
             f"/pulls/{pr.number}/files"
-        pr_changed_files = self.__do_json_api_get(pr_files_url)
+        pr_changed_files = self.__do_json_api_get_json(pr_files_url)
         return GitHubChangedFile.schema().load(pr_changed_files, many=True)
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
@@ -157,4 +184,4 @@ class GitHubApi:
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
-        self.__do_json_api_post(comments_url, {'body': content})
+        self.__do_json_api_post_json(comments_url, {'body': content})
