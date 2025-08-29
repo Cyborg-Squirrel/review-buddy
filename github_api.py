@@ -104,12 +104,6 @@ class GitHubApi:
         r.raise_for_status()
         return r.json()
 
-    def __do_json_api_get_json(self, url) -> Any:
-        """Does a Github api request, returns the response json"""
-        r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
-        r.raise_for_status()
-        return r.json()
-
     def __do_json_api_get(self, url) -> requests.Response:
         """Does a Github api request, returns the response json"""
         r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
@@ -164,7 +158,7 @@ class GitHubApi:
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
             f"/pulls/{pr.number}/files"
-        pr_changed_files = self.__do_json_api_get_json(pr_files_url)
+        pr_changed_files = self.__do_json_api_get(pr_files_url).json()
         return GitHubChangedFile.schema().load(pr_changed_files, many=True)
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
