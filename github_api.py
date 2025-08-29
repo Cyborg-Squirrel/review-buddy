@@ -158,8 +158,18 @@ class GitHubApi:
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
             f"/pulls/{pr.number}/files"
-        pr_changed_files = self.__do_json_api_get(pr_files_url).json()
-        return GitHubChangedFile.schema().load(pr_changed_files, many=True)
+        files = []
+        has_pages_remaining = True
+        page = 0
+        while has_pages_remaining:
+            page = page + 1
+            comments_url_page = f"{pr_files_url}?page={page}"
+            pr_changed_files_response = self.__do_json_api_get(comments_url_page)
+            has_pages_remaining = self.__paginated_response_has_more_pages(
+                pr_changed_files_response.headers)
+            files.extend(GitHubChangedFile.schema().load(pr_changed_files_response.json(),
+                                                         many=True))
+        return files
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
         """Gets the entire file contents"""
