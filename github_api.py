@@ -9,7 +9,7 @@
 #pylint: disable=no-member
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from dataclasses_json import Undefined, dataclass_json
@@ -89,7 +89,14 @@ class GitHubApi:
             "X-GitHub-Api-Version": "2022-11-28"
             }
 
-    def __do_json_api_post(self, url, request):
+    def __paginated_response_has_more_pages(self, headers) -> bool:
+        """Checks if the GitHub API response indicates there are more pages"""
+        link_header_present = 'Link' in headers.keys()
+        if link_header_present:
+            return '; rel="next"' in headers.get('Link')
+        return False
+
+    def __do_post(self, url, request):
         """POSTs a Github api request, returns the response json"""
         req = json.dumps(request)
         print(f"Request: {req}")
@@ -97,11 +104,11 @@ class GitHubApi:
         r.raise_for_status()
         return r.json()
 
-    def __do_json_api_get(self, url) -> Any:
+    def __do_json_api_get(self, url) -> requests.Response:
         """Does a Github api request, returns the response json"""
         r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
         r.raise_for_status()
-        return r.json()
+        return r
 
     def __do_json_api_request_raw_response(self, url, headers):
         """Does a Github api request, returns the raw text"""
@@ -109,22 +116,42 @@ class GitHubApi:
         r.raise_for_status()
         return r.text
 
+    def __do_paginated_request(self, url: str, page_param: str) -> list:
+        response_list = []
+        has_pages_remaining = True
+        page = 0
+        while has_pages_remaining:
+            page = page + 1
+            paginated_url = f"{url}{page_param}{page}"
+            response = self.__do_json_api_get(paginated_url)
+            has_pages_remaining = self.__paginated_response_has_more_pages(response.headers)
+            response_list.extend(response.json())
+        return response_list
+
     def get_open_prs(self) -> list[GitHubPr]:
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
         pr_list = []
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
-            open_prs_for_repo = self.__do_json_api_get(open_prs_url)
-            if open_prs_for_repo is not None and len(open_prs_for_repo) > 0:
-                pr_list.extend(GitHubPr.schema().load(open_prs_for_repo, many=True))
+            json_list = self.__do_paginated_request(open_prs_url, '&page=')
+            for json_obj in json_list:
+                if json_obj is list:
+                    pr_list.extend(GitHubPr.schema().load(json_obj, many=True))
+                else:
+                    pr_list.append(GitHubPr.schema().load(json_obj))
         return pr_list
 
     def get_comments_for_pr(self, pr: GitHubPr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
-        print(f"\n=== PR #{pr.number}: {pr.title} ===")
-        comments = self.__do_json_api_get(pr.comments_url)
-        return GitHubComment.schema().load(comments, many=True)
+        comments = []
+        json_list = self.__do_paginated_request(pr.comments_url, '?page=')
+        for json_obj in json_list:
+            if json_obj is list:
+                comments.extend(GitHubComment.schema().load(json_obj, many=True))
+            else:
+                comments.append(GitHubComment.schema().load(json_obj))
+        return comments
 
     def get_pr_diff(self, pr: GitHubPr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
@@ -137,8 +164,14 @@ class GitHubApi:
         repo = pr.head.repo
         pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
             f"/pulls/{pr.number}/files"
-        pr_changed_files = self.__do_json_api_get(pr_files_url)
-        return GitHubChangedFile.schema().load(pr_changed_files, many=True)
+        files = []
+        json_list = self.__do_paginated_request(pr_files_url, '?page=')
+        for json_obj in json_list:
+            if json_obj is list:
+                files.extend(GitHubChangedFile.schema().load(json_obj, many=True))
+            else:
+                files.append(GitHubChangedFile.schema().load(json_obj))
+        return files
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
         """Gets the entire file contents"""
@@ -157,4 +190,4 @@ class GitHubApi:
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
-        self.__do_json_api_post(comments_url, {'body': content})
+        self.__do_post(comments_url, {'body': content})
