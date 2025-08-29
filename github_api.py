@@ -9,7 +9,7 @@
 #pylint: disable=no-member
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from dataclasses_json import Undefined, dataclass_json
@@ -26,13 +26,16 @@ class GitHubUser:
 class GitHubRepo:
     """A Git repo - contains the owner and the name of the repository"""
     name: str
+    html_url: str
     owner: GitHubUser
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
-class GitHubHead:
-    """A Git head - contains information about the repo"""
+class GitHubRef:
+    """A Git ref - contains information about a ref"""
     repo: GitHubRepo
+    ref: str
+    sha: str
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -49,7 +52,10 @@ class GitHubPr:
     number: int
     title: str
     comments_url: str
-    head: GitHubHead
+    # The latest branch commit ref
+    head: GitHubRef
+    # The pull request target branch ref
+    base: GitHubRef
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -58,6 +64,7 @@ class GitHubChangedFile:
     filename: str
     raw_url: str
     patch: str
+    previous_filename: Optional[str] = None
 
 @dataclass
 class GitHubApiConfig:
@@ -105,7 +112,7 @@ class GitHubApi:
     def get_open_prs(self) -> list[GitHubPr]:
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
-        pr_list = list[GitHubPr]()
+        pr_list = []
         for repo in self.config.repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             open_prs_for_repo = self.__do_json_api_get(open_prs_url)
@@ -127,19 +134,25 @@ class GitHubApi:
 
     def get_changed_files(self, pr: GitHubPr) -> list[GitHubChangedFile]:
         """Gets the files changed in the PR"""
-        changed_files = list[GitHubChangedFile]()
         repo = pr.head.repo
-        pr_files_url = f"""{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}
-                            /pulls/{pr.number}/files"""
+        pr_files_url = f"{self.__API_BASE}/repos/{repo.owner.login}/{repo.name}"\
+            f"/pulls/{pr.number}/files"
         pr_changed_files = self.__do_json_api_get(pr_files_url)
-        GitHubChangedFile.from_dict(pr_changed_files, many=True)
-        return changed_files
+        return GitHubChangedFile.schema().load(pr_changed_files, many=True)
 
     def get_changed_file_whole_contents(self, file: GitHubChangedFile) -> str:
         """Gets the entire file contents"""
         raw_headers = self.__get_json_response_headers()
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(file.raw_url, raw_headers)
+
+    def get_upstream_file_whole_contents(self, pr: GitHubPr, file: GitHubChangedFile) -> str:
+        """Gets the entire file contents of the file from the source branch"""
+        filename = file.filename if file.previous_filename is None else file.previous_filename
+        request_url = f"{pr.base.repo.html_url}/raw/{pr.base.ref}/{filename}"
+        raw_headers = self.__get_json_response_headers()
+        raw_headers.pop("Accept")
+        return self.__do_json_api_request_raw_response(request_url, raw_headers)
 
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
