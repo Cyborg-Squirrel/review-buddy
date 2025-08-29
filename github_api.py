@@ -9,7 +9,7 @@
 #pylint: disable=no-member
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from dataclasses_json import Undefined, dataclass_json
