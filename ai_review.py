@@ -138,7 +138,7 @@ def create_description_of_changes(
             f"The proposed code changes:\n{changed_file_text}\n"\
 
 def do_review_with_full_file(pr: GitHubPr):
-    """Collects"""
+    """Collects diff and original file for review context"""
     changed_files = git_api.get_changed_files(pr)
     description_of_changes_list = []
     for changed_file in changed_files:
@@ -165,7 +165,7 @@ def process_pull_requests(pulls):
                     review_requested = True
             if review_requested:
                 diff = git_api.get_pr_diff(pr)
-                prompt_text = f"Code diff\n{diff}"
+                prompt_text = f"Git diff\n{diff}"
                 review_content = do_review(pr, prompt_text)
                 git_api.post_comment(pr, review_content)
             else:
