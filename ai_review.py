@@ -219,11 +219,12 @@ def main():
             open_prs = git_api.get_open_prs()
             if open_prs is not None and len(open_prs) > 0:
                 process_pull_requests(open_prs)
-            print("Waiting for 30 seconds")
-            time.sleep(30)
+            print("Waiting one minute...")
+            time.sleep(60)
         except Exception as e:
             print(f"ERROR {e}")
-            time.sleep(60)
+            # Wait 5 minutes
+            time.sleep(60*5)
 
 if __name__ == "__main__":
     main()
