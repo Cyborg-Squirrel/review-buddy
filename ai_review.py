@@ -17,6 +17,7 @@ import json
 import re
 import textwrap
 import time
+from typing import Optional
 
 from github_api import (GitHubApi, GitHubApiConfig, GitHubChangedFile,
                         GitHubPr, GitHubRepo)
@@ -115,7 +116,7 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, code_changes: str, model: str | None = None) -> str:
+def do_review(pull: GitHubPr, code_changes: str, model: Optional[str] = None) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled \"{pull.title}\". Point out "\
@@ -138,7 +139,7 @@ def create_description_of_changes(
     return f"File name:\n{file.filename}\n"\
             f"The proposed code changes:\n{changed_file_text}\n"\
 
-def get_requested_model(text: str) -> str | None:
+def get_requested_model(text: str) -> Optional[str]:
     """
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
