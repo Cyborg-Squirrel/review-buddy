@@ -14,6 +14,7 @@
 #pylint: disable=invalid-name, global-statement, broad-exception-caught, broad-exception-raised
 
 import json
+import re
 import textwrap
 import time
 
@@ -114,7 +115,7 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, code_changes: str) -> str:
+def do_review(pull: GitHubPr, code_changes: str, model: str | None = None) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled \"{pull.title}\". Point out "\
@@ -125,7 +126,7 @@ def do_review(pull: GitHubPr, code_changes: str) -> str:
 
     print("\n")
     print(f"Sending pull request {pull.title} to Ollama for review...")
-    review = ollama_api.do_generation(prompt)
+    review = ollama_api.do_generation(prompt, model)
     print("\n--- Ollama Review ---")
     print(review)
     return review
@@ -136,6 +137,20 @@ def create_description_of_changes(
     """Creates a description of all changes in changed_files_dict."""
     return f"File name:\n{file.filename}\n"\
             f"The proposed code changes:\n{changed_file_text}\n"\
+
+def get_requested_model(text: str) -> str | None:
+    """
+    Return the word that immediately follows the first occurrence of
+    "use" or "using" in *text*.
+    """
+    # 1. Look for the first “use” or “using”, case‑insensitive
+    # 2. Capture the following word
+    pattern = r'\b(?:use(?:ing)?)\b\s+(\w+)'
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+
+    if match:
+        return match.group(1)
+    return None
 
 def do_review_with_full_file(pr: GitHubPr):
     """Collects diff and original file for review context"""
@@ -155,6 +170,7 @@ def process_pull_requests(pulls):
         if comments:
             print("GitHub Comments:")
             review_requested = False
+            latest_comment_text = ''
             for c in comments:
                 comment_username = c.user.login
                 comment_body = c.body
@@ -163,10 +179,18 @@ def process_pull_requests(pulls):
                     review_requested = False
                 elif f"@{git_username}" in comment_body:
                     review_requested = True
+                    latest_comment_text = comment_body
             if review_requested:
+                model = get_requested_model(latest_comment_text)
+                if model is not None:
+                    if model not in allowed_models:
+                        git_api.post_comment(pr, f"{model} is not an allowed model. "\
+                                             "Please use on of the following models: "\
+                                            f"{', '.join(allowed_models)}.")
+                        continue
                 diff = git_api.get_pr_diff(pr)
                 prompt_text = f"Git diff\n{diff}"
-                review_content = do_review(pr, prompt_text)
+                review_content = do_review(pr, prompt_text, model)
                 git_api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
