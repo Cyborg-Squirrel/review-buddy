@@ -144,13 +144,11 @@ def get_requested_model(text: str) -> Optional[str]:
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
     """
-    # 1. Look for the first “use” or “using”, case‑insensitive
-    # 2. Capture the following word
-    pattern = r'\b(?:use(?:ing)?)\b\s+(\w+)'
+    pattern = r'\b(use|using)\s+([a-zA-Z0-9\-\:]+)'
     match = re.search(pattern, text, flags=re.IGNORECASE)
 
-    if match:
-        return match.group(1)
+    if match and len(match.groups()) == 2:
+        return match.group(2)
     return None
 
 def do_review_with_full_file(pr: GitHubPr):
@@ -183,6 +181,7 @@ def process_pull_requests(pulls):
                     latest_comment_text = comment_body
             if review_requested:
                 model = get_requested_model(latest_comment_text)
+                print(f"Using model {model}")
                 if model is not None:
                     if model not in allowed_models:
                         git_api.post_comment(pr, f"{model} is not an allowed model. "\
