@@ -17,9 +17,10 @@ import json
 import textwrap
 import time
 
-from github_api import (GitHubApi, GitHubApiConfig, GitHubChangedFile,
+from code_review.github_api import (GitHubApi, GitHubApiConfig, GitHubChangedFile,
                         GitHubPr, GitHubRepo)
-from ollama_api import OllamaApi, OllamaConfig
+
+from ollama.ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
 # CONFIG
@@ -177,7 +178,7 @@ def process_pull_requests(pulls):
 # Pylint added because the loop just prints any error
 # Then waits for longer than normal to loop again
 #pylint: disable=bare-except
-def main():
+def code_review_main():
     """Reads in the config then runs the loop to check specified repos 
     for pull requests then post code reviews from Ollama"""
     try:
@@ -201,5 +202,5 @@ def main():
             print(f"ERROR {e}")
             time.sleep(60)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
