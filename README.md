@@ -32,3 +32,4 @@ Review Buddy provides an AI-powered code reviews using Ollama.
 
 * Create a pull request
 * Explain your changes
+* The GitHub workflow must pass
