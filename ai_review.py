@@ -144,7 +144,7 @@ def get_requested_model(text: str) -> Optional[str]:
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
     """
-    pattern = r'\b(use|using)\s+([a-zA-Z0-9\-\:]+)'
+    pattern = r'\b(use|using)\s+([a-zA-Z0-9\-\:\.]+)'
     match = re.search(pattern, text, flags=re.IGNORECASE)
 
     if match and len(match.groups()) == 2:
