@@ -1,12 +1,20 @@
-import json
+"""An API class for interacting with Gitlab"""
+
+# ------------------------------
+# Rationale for disabled lints
+# ------------------------------
+# no-member: dataclasses_json functions such as schema() get this
+# error, but the code compiles and runs.
+#
+#pylint: disable=no-member
+
 from dataclasses import dataclass
-from typing import List, Optional
 
 import requests
-from dataclasses_json import dataclass_json, undefined
+from dataclasses_json import Undefined, dataclass_json
 
 
-@dataclass_json(undefined=undefined.EXCLUDE)
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitLabMergeRequest:
     """Represents a GitLab Merge Request."""
@@ -18,7 +26,7 @@ class GitLabMergeRequest:
     target_branch: str
 
 
-@dataclass_json(undefined=undefined.EXCLUDE)
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitLabNote:
     """Represents a note (comment) in a GitLab Merge Request."""
@@ -27,7 +35,7 @@ class GitLabNote:
     author: dict  # Simplified representation of the author
 
 
-@dataclass_json(undefined=undefined.EXCLUDE)
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitLabCommit:
     """Represents a commit in a GitLab Merge Request."""
@@ -35,7 +43,7 @@ class GitLabCommit:
     message: str
 
 
-@dataclass_json(undefined=undefined.EXCLUDE)
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class GitLabChangedFile:
     """Represents a file that has been changed."""
@@ -44,6 +52,12 @@ class GitLabChangedFile:
 
 
 class GitLabAPI:
+    """
+    GitLabApi
+
+    Communicates with GitLab's APIs
+    """
+
     def __init__(self, gitlab_url, private_token):
         self.gitlab_url = gitlab_url
         self.private_token = private_token
@@ -55,7 +69,7 @@ class GitLabAPI:
     def get_comments_for_mr(self, project_id, mr_id) -> list[GitLabNote]:
         """Gets all comments posted on a merge request"""
         url = f"{self.gitlab_url}/api/v4/projects/{project_id}/merge_requests/{mr_id}/notes"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabNote.schema().load(response.json(), many=True)
 
@@ -63,20 +77,20 @@ class GitLabAPI:
         """Posts a comment to a merge request"""
         url = f"{self.gitlab_url}/api/v4/projects/{project_id}/merge_requests/{mr_id}/notes"
         data = {"body": content}
-        response = requests.post(url, headers=self.headers, json=data)
+        response = requests.post(url, headers=self.headers, json=data, timeout=5)
         response.raise_for_status()
 
     def get_changed_files(self, project_id, mr_id) -> list[GitLabChangedFile]:
         """Gets the files changed in the merge request"""
         url = f"{self.gitlab_url}/api/v4/projects/{project_id}/merge_requests/{mr_id}/changes"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabChangedFile.schema().load(response.json(), many=True)
 
     def get_open_merge_requests(self, project_id) -> list[GitLabMergeRequest]:
         """Retrieves all open merge requests for a given project"""
         url = f"{self.gitlab_url}/api/v4/projects/{project_id}/merge_requests?state=opened"
-        response = requests.get(url, headers=self.headers)
+        response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabMergeRequest.schema().load(response.json(), many=True)
 
@@ -84,6 +98,6 @@ class GitLabAPI:
         """Gets the raw content of a file"""
         url = f"{self.gitlab_url}/api/v4/projects/{project_id}/repository/files/{file_path}"
         params = {"ref": ref}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = requests.get(url, headers=self.headers, params=params, timeout=5)
         response.raise_for_status()
         return response.text
