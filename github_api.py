@@ -96,20 +96,6 @@ class GitHubApi:
             return '; rel="next"' in headers.get('Link')
         return False
 
-    def __do_post(self, url, request):
-        """POSTs a Github api request, returns the response json"""
-        req = json.dumps(request)
-        print(f"Request: {req}")
-        r = requests.post(url, headers=self.__get_json_response_headers(), timeout=5, data=req)
-        r.raise_for_status()
-        return r.json()
-
-    def __do_json_api_get(self, url) -> requests.Response:
-        """Does a Github api request, returns the response json"""
-        r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
-        r.raise_for_status()
-        return r
-
     def __do_json_api_request_raw_response(self, url, headers):
         """Does a Github api request, returns the raw text"""
         r = requests.get(url, headers=headers, timeout=5)
@@ -123,7 +109,9 @@ class GitHubApi:
         while has_pages_remaining:
             page = page + 1
             paginated_url = f"{url}{page_param}{page}"
-            response = self.__do_json_api_get(paginated_url)
+            response = requests.get(paginated_url,
+                                    headers=self.__get_json_response_headers(), timeout=5)
+            response.raise_for_status()
             has_pages_remaining = self.__paginated_response_has_more_pages(response.headers)
             response_list.extend(response.json())
         return response_list
@@ -190,4 +178,7 @@ class GitHubApi:
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
-        self.__do_post(comments_url, {'body': content})
+        req = json.dumps({'body': content})
+        r = requests.post(comments_url,
+                          headers=self.__get_json_response_headers(), timeout=5, data=req)
+        r.raise_for_status()
