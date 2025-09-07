@@ -82,7 +82,7 @@ class GitLabApi:
         response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabNote.schema().load(response.json(), many=True)
-    
+
     def get_diff(self, mr: GitLabMergeRequest) -> str:
         """Gets the diff for the merge request in raw form (not json)"""
         url = f"{self.gitlab_url}/api/v5/projects/{mr.project_id}/merge_requests/{mr.id}.diff"
@@ -99,7 +99,7 @@ class GitLabApi:
 
     def get_open_mrs(self, project_ids) -> list[GitLabMergeRequest]:
         """Retrieves all open merge requests for the specified projects"""
-        mrs = list()
+        mrs = []
         for project_id in project_ids:
             url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests?state=opened"
             response = requests.get(url, headers=self.headers, timeout=5)

@@ -51,9 +51,10 @@ allowed_models = []
 # ------------------------------
 
 def get_api() -> GitHubApi | GitLabApi:
+    """Returns the configured Git API"""
     if github_api is not None:
         return github_api
-    elif gitlab_api is not None:
+    if gitlab_api is not None:
         return gitlab_api
     raise Exception('No APIs available! Check your configuration.')
 
@@ -138,7 +139,8 @@ def read_config():
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str, model: Optional[str] = None) -> str:
+def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str,
+              model: Optional[str] = None) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled \"{pull.title}\". Point out "\
@@ -188,13 +190,14 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     """Checks comments on pull requests and requests Ollama for code reviews"""
     api = get_api()
     for pr in pulls:
+        is_github = isinstance(c, GitHubComment)
         comments = api.get_comments(pr)
         if comments:
             print("Comments:")
             review_requested = False
             latest_comment_text = ''
             for c in comments:
-                comment_username = c.user.login if isinstance(c, GitHubComment) else c.author.username
+                comment_username = c.user.login if is_github else c.author.username
                 comment_body = c.body
                 print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
@@ -226,10 +229,9 @@ def get_pull_requests():
     api = get_api()
     if isinstance(api, GitLabApi):
         return api.get_open_mrs(gitlab_projects)
-    elif isinstance(api, GitHubApi):
+    if isinstance(api, GitHubApi):
         return api.get_open_prs(github_repos)
-    else:
-        raise Exception(f"Unsupported API: {api}")
+    raise Exception(f"Unsupported API: {api}")
 
 # Pylint added because the loop just prints any error
 # Then waits for longer than normal to loop again
