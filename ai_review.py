@@ -19,8 +19,8 @@ import textwrap
 import time
 from typing import Optional
 
-from github_api import (GitHubApi, GitHubApiConfig, GitHubChangedFile,
-                        GitHubPr, GitHubRepo)
+from github_api import GitHubApi, GitHubChangedFile, GitHubPr, GitHubRepo
+from gitlab_api import GitLabApi, GitLabMergeRequest
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -29,23 +29,35 @@ from ollama_api import OllamaApi, OllamaConfig
 REPO_OWNER_KEY = "owner"
 REPO_NAME_KEY = "name"
 REPO_LIST_KEY = "repositories"
-GIT_TOKEN_KEY = "git-token"
-GITHUB_USERNAME_KEY = "git-username"
-git_username: str
-config: GitHubApiConfig
-git_api: GitHubApi
-
+PROJECT_LIST_KEY = "projects"
+GIT_BASE_URL = "git-url"
+GIT_TOKEN_KEY = "token"
+GITHUB_USERNAME_KEY = "username"
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 AI_MODEL_NAME_KEY = "ai-model"
 DEFAULT_AI_MODEL = "codellama"
+
 ollama_api: OllamaApi
+git_username: str
+gitlab_api: GitLabApi
+gitlab_projects = list[str]
+github_api: GitHubApi
+github_repos: list[GitHubRepo]
 
 ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 # ------------------------------
 
-#pylint: disable=too-many-branches
+def get_api() -> GitHubApi | GitLabApi:
+    """Returns the configured Git API"""
+    if github_api is not None:
+        return github_api
+    if gitlab_api is not None:
+        return gitlab_api
+    raise Exception('No APIs available! Check your configuration.')
+
+#pylint: disable=too-many-branches, too-many-statements
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
@@ -55,7 +67,9 @@ def read_config():
 
             if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
                 raise Exception("git-token not found in config file!")
-            github_token = data[GIT_TOKEN_KEY]
+            git_token = data[GIT_TOKEN_KEY]
+
+            git_url = data[GIT_BASE_URL]
 
             ollama_url: str
             if OLLAMA_URL_KEY in data and len(data[OLLAMA_URL_KEY]) > 0:
@@ -91,6 +105,8 @@ def read_config():
             repos = data[REPO_LIST_KEY]
             repo_list = []
 
+            projects = data[PROJECT_LIST_KEY]
+
             for repo in repos:
                 name = repo[REPO_NAME_KEY]
                 if name is None or len(name) == 0:
@@ -104,19 +120,26 @@ def read_config():
                                     "entries in the repo-list.")
                 repo_list.append(GitHubRepo(name=name, owner=owner, html_url=""))
 
-            if len(repo_list) == 0:
-                raise Exception("Repository list is empty! Please include a "\
-                                "list of objects with a name and owner.")
-
-            global config, git_api
-            config = GitHubApiConfig(repo_list=repo_list, token=github_token)
-            git_api = GitHubApi(config=config)
+            if len(repo_list) > 0:
+                global github_repos, github_api
+                github_repos = repo_list
+                github_api = GitHubApi(git_token)
+            elif len(projects) > 0:
+                # git-url is required for GitLab
+                if GIT_BASE_URL not in data or len(data[GIT_BASE_URL]) == 0:
+                    raise Exception("git-url not found in config file!")
+                global gitlab_projects, gitlab_api
+                gitlab_projects = projects
+                gitlab_api = GitLabApi(git_url, git_token)
+            else:
+                raise Exception("No GitHub repositories or GitLab projects found in the config!")
     except FileNotFoundError as file_not_found_err:
         print("config.json not found! Please create it. See: config_template.json "\
               "for a starting point")
         raise file_not_found_err
 
-def do_review(pull: GitHubPr, code_changes: str, model: Optional[str] = None) -> str:
+def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str,
+              model: Optional[str] = None) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
     prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
                               f"pull request titled \"{pull.title}\". Point out "\
@@ -139,6 +162,17 @@ def create_description_of_changes(
     return f"File name:\n{file.filename}\n"\
             f"The proposed code changes:\n{changed_file_text}\n"\
 
+def do_review_with_full_file(pr: GitHubPr):
+    """Collects diff and original file for review context"""
+    changed_files = github_api.get_changed_files(pr)
+    description_of_changes_list = []
+    for changed_file in changed_files:
+        changed_file_text = github_api.get_changed_file_whole_contents(changed_file)
+        description_of_changes = create_description_of_changes(changed_file, changed_file_text)
+        description_of_changes_list.append(description_of_changes)
+    code_changes_prompt_text = "\n".join(description_of_changes_list)
+    return do_review(pr, code_changes_prompt_text)
+
 def get_requested_model(text: str) -> Optional[str]:
     """
     Return the word that immediately follows the first occurrence of
@@ -151,27 +185,18 @@ def get_requested_model(text: str) -> Optional[str]:
         return match.group(2)
     return None
 
-def do_review_with_full_file(pr: GitHubPr):
-    """Collects diff and original file for review context"""
-    changed_files = git_api.get_changed_files(pr)
-    description_of_changes_list = []
-    for changed_file in changed_files:
-        changed_file_text = git_api.get_changed_file_whole_contents(changed_file)
-        description_of_changes = create_description_of_changes(changed_file, changed_file_text)
-        description_of_changes_list.append(description_of_changes)
-    code_changes_prompt_text = "\n".join(description_of_changes_list)
-    return do_review(pr, code_changes_prompt_text)
-
-def process_pull_requests(pulls):
+def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     """Checks comments on pull requests and requests Ollama for code reviews"""
+    api = get_api()
+    is_github = isinstance(api, GitHubApi)
     for pr in pulls:
-        comments = git_api.get_comments_for_pr(pr)
+        comments = api.get_comments(pr)
         if comments:
-            print("GitHub Comments:")
+            print("Comments:")
             review_requested = False
             latest_comment_text = ''
             for c in comments:
-                comment_username = c.user.login
+                comment_username = c.user.login if is_github else c.author.username
                 comment_body = c.body
                 print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
@@ -182,21 +207,29 @@ def process_pull_requests(pulls):
             if review_requested:
                 model = get_requested_model(latest_comment_text)
                 print(f"Using model {model}")
-                if model is not None:
-                    if model not in allowed_models:
-                        git_api.post_comment(pr, f"{model} is not an allowed model. "\
-                                             "Please use on of the following models: "\
-                                            f"{', '.join(allowed_models)}.")
-                        continue
-                diff = git_api.get_pr_diff(pr)
+                if model is not None and model not in allowed_models:
+                    api.post_comment(pr, f"{model} is not an allowed model. "\
+                                     "Please use on of the following models: "\
+                                        f"{', '.join(allowed_models)}.")
+                    continue
+                diff = api.get_diff(pr)
                 prompt_text = f"Git diff\n{diff}"
                 review_content = do_review(pr, prompt_text, model)
-                git_api.post_comment(pr, review_content)
+                api.post_comment(pr, review_content)
             else:
                 print(f"\nNot doing a review. No @{git_username} comment found " +
                       f"or the last comment was posted by {git_username}.")
         else:
             print("No GitHub comments.")
+
+def get_pull_requests():
+    """Gets all open pull/merge requests for the configured repositories"""
+    api = get_api()
+    if isinstance(api, GitLabApi):
+        return api.get_open_mrs(gitlab_projects)
+    if isinstance(api, GitHubApi):
+        return api.get_open_prs(github_repos)
+    raise Exception(f"Unsupported API: {api}")
 
 # Pylint added because the loop just prints any error
 # Then waits for longer than normal to loop again
@@ -206,17 +239,13 @@ def main():
     for pull requests then post code reviews from Ollama"""
     try:
         read_config()
-        repo_list_printable = list(map(
-            lambda x: f"""{x.owner}/{x.name}""",
-            config.repo_list))
-        print("Watching repositories: ", repo_list_printable)
     except Exception as e:
         print("Error while trying to read in config:", e)
         return -1
     while True:
         try:
             print("Checking repositories for open PRs")
-            open_prs = git_api.get_open_prs()
+            open_prs = get_pull_requests()
             if open_prs is not None and len(open_prs) > 0:
                 process_pull_requests(open_prs)
             print("Waiting one minute...")

@@ -66,25 +66,18 @@ class GitHubChangedFile:
     patch: str
     previous_filename: Optional[str] = None
 
-@dataclass
-class GitHubApiConfig:
-    """GitHubApi config - contains an auth token and repos in use"""
-    repo_list: list[GitHubRepo]
-    token: str
-
 class GitHubApi:
     """API for interacting with GitHub"""
 
     __API_BASE = "https://api.github.com"
-    config: GitHubApiConfig
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, token):
+        self.token = token
 
     def __get_json_response_headers(self):
         """Returns a dict of the default Github api headers"""
         return {
-            "Authorization": f"Bearer {self.config.token}",
+            "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github.raw+json",
             "X-GitHub-Api-Version": "2022-11-28"
             }
@@ -95,20 +88,6 @@ class GitHubApi:
         if link_header_present:
             return '; rel="next"' in headers.get('Link')
         return False
-
-    def __do_post(self, url, request):
-        """POSTs a Github api request, returns the response json"""
-        req = json.dumps(request)
-        print(f"Request: {req}")
-        r = requests.post(url, headers=self.__get_json_response_headers(), timeout=5, data=req)
-        r.raise_for_status()
-        return r.json()
-
-    def __do_json_api_get(self, url) -> requests.Response:
-        """Does a Github api request, returns the response json"""
-        r = requests.get(url, headers=self.__get_json_response_headers(), timeout=5)
-        r.raise_for_status()
-        return r
 
     def __do_json_api_request_raw_response(self, url, headers):
         """Does a Github api request, returns the raw text"""
@@ -123,16 +102,18 @@ class GitHubApi:
         while has_pages_remaining:
             page = page + 1
             paginated_url = f"{url}{page_param}{page}"
-            response = self.__do_json_api_get(paginated_url)
+            response = requests.get(paginated_url,
+                                    headers=self.__get_json_response_headers(), timeout=5)
+            response.raise_for_status()
             has_pages_remaining = self.__paginated_response_has_more_pages(response.headers)
             response_list.extend(response.json())
         return response_list
 
-    def get_open_prs(self) -> list[GitHubPr]:
+    def get_open_prs(self, repo_list: list[GitHubRepo]) -> list[GitHubPr]:
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
         pr_list = []
-        for repo in self.config.repo_list:
+        for repo in repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             json_list = self.__do_paginated_request(open_prs_url, '&page=')
             for json_obj in json_list:
@@ -142,7 +123,7 @@ class GitHubApi:
                     pr_list.append(GitHubPr.schema().load(json_obj))
         return pr_list
 
-    def get_comments_for_pr(self, pr: GitHubPr) -> list[GitHubComment]:
+    def get_comments(self, pr: GitHubPr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
         comments = []
         json_list = self.__do_paginated_request(pr.comments_url, '?page=')
@@ -153,7 +134,7 @@ class GitHubApi:
                 comments.append(GitHubComment.schema().load(json_obj))
         return comments
 
-    def get_pr_diff(self, pr: GitHubPr) -> str:
+    def get_diff(self, pr: GitHubPr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
         diff_headers = self.__get_json_response_headers()
         diff_headers["Accept"] = "application/vnd.github.diff"
@@ -190,4 +171,7 @@ class GitHubApi:
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
-        self.__do_post(comments_url, {'body': content})
+        req = json.dumps({'body': content})
+        r = requests.post(comments_url,
+                          headers=self.__get_json_response_headers(), timeout=5, data=req)
+        r.raise_for_status()

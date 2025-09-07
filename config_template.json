@@ -1,6 +1,7 @@
 {
-    "git-username": "",
-    "git-token": "",
+    "username": "",
+    "token": "",
+    "git-url": "",
     "ollama-url": "",
     "repositories": [
         {
@@ -8,6 +9,7 @@
             "owner": ""
         }
     ],
+    "projects": [],
     "allowed-models": [],
     "ai-model": "codellama"
 }
