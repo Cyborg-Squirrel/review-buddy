@@ -6,7 +6,7 @@ Review Buddy provides an AI-powered code reviews using Ollama.
 
 ## Requirements
 
-*   Python 3.9 or newer
+*   Python 3.10 or newer
   
 
 ## Installation
