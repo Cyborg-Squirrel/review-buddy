@@ -189,8 +189,8 @@ def get_requested_model(text: str) -> Optional[str]:
 def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     """Checks comments on pull requests and requests Ollama for code reviews"""
     api = get_api()
+    is_github = isinstance(api, GitHubApi)
     for pr in pulls:
-        is_github = isinstance(c, GitHubComment)
         comments = api.get_comments(pr)
         if comments:
             print("Comments:")
@@ -208,12 +208,11 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
             if review_requested:
                 model = get_requested_model(latest_comment_text)
                 print(f"Using model {model}")
-                if model is not None:
-                    if model not in allowed_models:
-                        api.post_comment(pr, f"{model} is not an allowed model. "\
-                                             "Please use on of the following models: "\
-                                            f"{', '.join(allowed_models)}.")
-                        continue
+                if model is not None and model not in allowed_models:
+                    api.post_comment(pr, f"{model} is not an allowed model. "\
+                                     "Please use on of the following models: "\
+                                        f"{', '.join(allowed_models)}.")
+                    continue
                 diff = api.get_diff(pr)
                 prompt_text = f"Git diff\n{diff}"
                 review_content = do_review(pr, prompt_text, model)
