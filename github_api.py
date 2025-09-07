@@ -66,25 +66,18 @@ class GitHubChangedFile:
     patch: str
     previous_filename: Optional[str] = None
 
-@dataclass
-class GitHubApiConfig:
-    """GitHubApi config - contains an auth token and repos in use"""
-    repo_list: list[GitHubRepo]
-    token: str
-
 class GitHubApi:
     """API for interacting with GitHub"""
 
     __API_BASE = "https://api.github.com"
-    config: GitHubApiConfig
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, token):
+        self.token = token
 
     def __get_json_response_headers(self):
         """Returns a dict of the default Github api headers"""
         return {
-            "Authorization": f"Bearer {self.config.token}",
+            "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github.raw+json",
             "X-GitHub-Api-Version": "2022-11-28"
             }
@@ -116,11 +109,11 @@ class GitHubApi:
             response_list.extend(response.json())
         return response_list
 
-    def get_open_prs(self) -> list[GitHubPr]:
+    def get_open_prs(self, repo_list: list[GitHubRepo]) -> list[GitHubPr]:
         """Checks the configured repositories for open pull requests"""
         print("Checking for open pull requests")
         pr_list = []
-        for repo in self.config.repo_list:
+        for repo in repo_list:
             open_prs_url = f"{self.__API_BASE}/repos/{repo.owner}/{repo.name}/pulls?state=open"
             json_list = self.__do_paginated_request(open_prs_url, '&page=')
             for json_obj in json_list:
@@ -130,7 +123,7 @@ class GitHubApi:
                     pr_list.append(GitHubPr.schema().load(json_obj))
         return pr_list
 
-    def get_comments_for_pr(self, pr: GitHubPr) -> list[GitHubComment]:
+    def get_comments(self, pr: GitHubPr) -> list[GitHubComment]:
         """Gets all comments posted on a specified pr"""
         comments = []
         json_list = self.__do_paginated_request(pr.comments_url, '?page=')
@@ -141,7 +134,7 @@ class GitHubApi:
                 comments.append(GitHubComment.schema().load(json_obj))
         return comments
 
-    def get_pr_diff(self, pr: GitHubPr) -> str:
+    def get_diff(self, pr: GitHubPr) -> str:
         """Gets the diff for the pull request in raw form (not json)"""
         diff_headers = self.__get_json_response_headers()
         diff_headers["Accept"] = "application/vnd.github.diff"

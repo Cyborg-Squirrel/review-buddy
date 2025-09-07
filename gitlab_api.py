@@ -19,12 +19,20 @@ from dataclasses_json import Undefined, dataclass_json
 class GitLabMergeRequest:
     """Represents a GitLab Merge Request."""
     id: int
+    project_id: int
     title: str
     web_url: str
     description: str
     source_branch: str
     target_branch: str
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass
+class GitLabAuthor:
+    """The author of an object (comment, merge request, etc) in GitLab"""
+    id: int
+    name: str
+    username: str
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -32,7 +40,7 @@ class GitLabNote:
     """Represents a note (comment) in a GitLab Merge Request."""
     id: int
     body: str
-    author: dict  # Simplified representation of the author
+    author: GitLabAuthor
 
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -53,7 +61,7 @@ class GitLabChangedFile:
     diff: str
 
 
-class GitLabAPI:
+class GitLabApi:
     """
     GitLabApi
 
@@ -68,33 +76,36 @@ class GitLabAPI:
             'Content-Type': 'application/json'
         }
 
-    def get_comments_for_mr(self, project_id, mr_id) -> list[GitLabNote]:
+    def get_comments(self, mr: GitLabMergeRequest) -> list[GitLabNote]:
         """Gets all comments posted on a merge request"""
-        url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests/{mr_id}/notes"
+        url = f"{self.gitlab_url}/api/v5/projects/{mr.project_id}/merge_requests/{mr.id}/notes"
         response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabNote.schema().load(response.json(), many=True)
-
-    def post_comment_on_mr(self, project_id, mr_id, content):
-        """Posts a comment to a merge request"""
-        url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests/{mr_id}/notes"
-        data = {"body": content}
-        response = requests.post(url, headers=self.headers, json=data, timeout=5)
+    
+    def get_diff(self, mr: GitLabMergeRequest) -> str:
+        """Gets the diff for the merge request in raw form (not json)"""
+        url = f"{self.gitlab_url}/api/v5/projects/{mr.project_id}/merge_requests/{mr.id}.diff"
+        response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
+        return response
 
-    def get_changed_files(self, project_id, mr_id) -> list[GitLabChangedFile]:
+    def get_changed_files(self,mr: GitLabMergeRequest) -> list[GitLabChangedFile]:
         """Gets the files changed in the merge request"""
-        url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests/{mr_id}/diffs"
+        url = f"{self.gitlab_url}/api/v5/projects/{mr.project_id}/merge_requests/{mr.id}/diffs"
         response = requests.get(url, headers=self.headers, timeout=5)
         response.raise_for_status()
         return GitLabChangedFile.schema().load(response.json(), many=True)
 
-    def get_open_merge_requests(self, project_id) -> list[GitLabMergeRequest]:
-        """Retrieves all open merge requests for a given project"""
-        url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests?state=opened"
-        response = requests.get(url, headers=self.headers, timeout=5)
-        response.raise_for_status()
-        return GitLabMergeRequest.schema().load(response.json(), many=True)
+    def get_open_mrs(self, project_ids) -> list[GitLabMergeRequest]:
+        """Retrieves all open merge requests for the specified projects"""
+        mrs = list()
+        for project_id in project_ids:
+            url = f"{self.gitlab_url}/api/v5/projects/{project_id}/merge_requests?state=opened"
+            response = requests.get(url, headers=self.headers, timeout=5)
+            response.raise_for_status()
+            mrs.extend(GitLabMergeRequest.schema().load(response.json(), many=True))
+        return mrs
 
     def get_raw_file_contents(self, project_id, file_path, ref) -> str:
         """Gets the raw content of a file"""
@@ -103,3 +114,10 @@ class GitLabAPI:
         response = requests.get(url, headers=self.headers, params=params, timeout=5)
         response.raise_for_status()
         return response.text
+
+    def post_comment(self, mr: GitLabMergeRequest, content: str):
+        """Posts a comment to a merge request"""
+        url = f"{self.gitlab_url}/api/v5/projects/{mr.project_id}/merge_requests/{mr.id}/notes"
+        data = {"body": content}
+        response = requests.post(url, headers=self.headers, json=data, timeout=5)
+        response.raise_for_status()
