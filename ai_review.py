@@ -19,9 +19,8 @@ import textwrap
 import time
 from typing import Optional
 
-from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
-                        GitHubRepo)
-from gitlab_api import GitLabApi, GitLabMergeRequest, GitLabNote
+from github_api import GitHubApi, GitHubChangedFile, GitHubPr, GitHubRepo
+from gitlab_api import GitLabApi, GitLabMergeRequest
 from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
@@ -58,7 +57,7 @@ def get_api() -> GitHubApi | GitLabApi:
         return gitlab_api
     raise Exception('No APIs available! Check your configuration.')
 
-#pylint: disable=too-many-branches
+#pylint: disable=too-many-branches, too-many-statements
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
@@ -69,9 +68,6 @@ def read_config():
             if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
                 raise Exception("git-token not found in config file!")
             git_token = data[GIT_TOKEN_KEY]
-
-            if GIT_BASE_URL not in data or len(data[GIT_BASE_URL]) == 0:
-                raise Exception("git-url not found in config file!")
 
             git_url = data[GIT_BASE_URL]
 
@@ -129,6 +125,9 @@ def read_config():
                 github_repos = repo_list
                 github_api = GitHubApi(git_token)
             elif len(projects) > 0:
+                # git-url is required for GitLab
+                if GIT_BASE_URL not in data or len(data[GIT_BASE_URL]) == 0:
+                    raise Exception("git-url not found in config file!")
                 global gitlab_projects, gitlab_api
                 gitlab_projects = projects
                 gitlab_api = GitLabApi(git_url, git_token)
