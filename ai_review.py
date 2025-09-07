@@ -19,7 +19,8 @@ import textwrap
 import time
 from typing import Optional
 
-from github_api import GitHubApi, GitHubChangedFile, GitHubPr, GitHubRepo
+from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
+                        GitHubRepo)
 from gitlab_api import GitLabApi, GitLabMergeRequest
 from ollama_api import OllamaApi, OllamaConfig
 
@@ -188,7 +189,6 @@ def get_requested_model(text: str) -> Optional[str]:
 def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     """Checks comments on pull requests and requests Ollama for code reviews"""
     api = get_api()
-    is_github = isinstance(api, GitHubApi)
     for pr in pulls:
         comments = api.get_comments(pr)
         if comments:
@@ -196,7 +196,8 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
             review_requested = False
             latest_comment_text = ''
             for c in comments:
-                comment_username = c.user.login if is_github else c.author.username
+                comment_username = c.user.login if isinstance(c, GitHubComment)\
+                    else c.author.username
                 comment_body = c.body
                 print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
