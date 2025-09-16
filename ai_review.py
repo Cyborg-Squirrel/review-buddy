@@ -19,10 +19,11 @@ import textwrap
 import time
 from typing import Optional
 
+from ollama import Client
+
 from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
                         GitHubRepo)
 from gitlab_api import GitLabApi, GitLabMergeRequest
-from ollama_api import OllamaApi, OllamaConfig
 
 # ------------------------------
 # CONFIG
@@ -39,7 +40,8 @@ OLLAMA_DEFAULT_URL = "http://localhost:11434"
 AI_MODEL_NAME_KEY = "ai-model"
 DEFAULT_AI_MODEL = "codellama"
 
-ollama_api: OllamaApi
+ollama_client: Client
+ollama_default_model: str
 git_username: str
 gitlab_api: GitLabApi
 gitlab_projects = list[str]
@@ -84,9 +86,12 @@ def read_config():
             if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
                 model_name = data[AI_MODEL_NAME_KEY]
 
-            global ollama_api
-            ollama_config = OllamaConfig(ollama_url, model_name)
-            ollama_api = OllamaApi(ollama_config)
+            global ollama_client, ollama_default_model
+            ollama_client = Client(
+                host=ollama_url,
+                headers={'x-some-header': 'some-value'}
+            )
+            ollama_default_model = model_name
 
             if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
                 allowed_models.clear()
@@ -151,10 +156,14 @@ def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str,
 
     print("\n")
     print(f"Sending pull request {pull.title} to Ollama for review...")
-    review = ollama_api.do_generation(prompt, model)
+    review = ollama_client.chat(
+        model=model if model is not None else ollama_default_model,
+        messages=[{'role': 'user', 'content': prompt}],
+        stream=False,
+    )
     print("\n--- Ollama Review ---")
     print(review)
-    return review
+    return review.message.content
 
 def create_description_of_changes(
         file: GitHubChangedFile, changed_file_text: str
