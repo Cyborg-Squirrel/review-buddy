@@ -19,7 +19,7 @@ import textwrap
 import time
 from typing import Optional
 
-from ollama import Client, chat
+from ollama import Client
 
 from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
                         GitHubRepo)
