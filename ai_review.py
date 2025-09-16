@@ -157,13 +157,13 @@ def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str,
     print("\n")
     print(f"Sending pull request {pull.title} to Ollama for review...")
     review = ollama_client.chat(
-        model=model if model is None else ollama_default_model,
+        model=model if model is not None else ollama_default_model,
         messages=[{'role': 'user', 'content': prompt}],
         stream=False,
     )
     print("\n--- Ollama Review ---")
     print(review)
-    return review
+    return review.message.content
 
 def create_description_of_changes(
         file: GitHubChangedFile, changed_file_text: str
