@@ -87,10 +87,7 @@ def read_config():
                 model_name = data[AI_MODEL_NAME_KEY]
 
             global ollama_client, ollama_default_model
-            ollama_client = Client(
-                host=ollama_url,
-                headers={'x-some-header': 'some-value'}
-            )
+            ollama_client = Client(host=ollama_url)
             ollama_default_model = model_name
 
             if ALLOWED_MODELS_KEY in data and len(data[ALLOWED_MODELS_KEY]) > 0:
