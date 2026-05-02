@@ -11,7 +11,7 @@
 # global-statement this is for brevity and not ideal at scale.
 # Console output will contain error details as much as reasonably possible.
 #
-#pylint: disable=invalid-name, global-statement, broad-exception-caught, broad-exception-raised
+# pylint: disable=invalid-name, global-statement, broad-exception-caught, broad-exception-raised
 
 import json
 import re
@@ -52,20 +52,22 @@ ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 # ------------------------------
 
+
 def get_api() -> GitHubApi | GitLabApi:
     """Returns the configured Git API"""
     if github_api is not None:
         return github_api
     if gitlab_api is not None:
         return gitlab_api
-    raise Exception('No APIs available! Check your configuration.')
+    raise Exception("No APIs available! Check your configuration.")
 
-#pylint: disable=too-many-branches, too-many-statements
+
+# pylint: disable=too-many-branches, too-many-statements
 def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
     try:
-        with open('config.json', 'r', encoding='utf-8') as file:
+        with open("config.json", "r", encoding="utf-8") as file:
             data = json.load(file)
 
             if GIT_TOKEN_KEY not in data or len(data[GIT_TOKEN_KEY]) == 0:
@@ -97,7 +99,9 @@ def read_config():
 
             if len(allowed_models) > 0:
                 if model_name not in allowed_models:
-                    raise Exception(f"{model_name} is not in allowed models list {allowed_models}!")
+                    raise Exception(
+                        f"{model_name} is not in allowed models list {allowed_models}!"
+                    )
 
             if GITHUB_USERNAME_KEY not in data or len(data[GITHUB_USERNAME_KEY]) == 0:
                 raise Exception("git-username not found in config file!")
@@ -113,14 +117,18 @@ def read_config():
             for repo in repos:
                 name = repo[REPO_NAME_KEY]
                 if name is None or len(name) == 0:
-                    raise Exception("Repository name is not set! "\
-                                    "Please ensure it is present for all "\
-                                    "entries in the repo-list.")
+                    raise Exception(
+                        "Repository name is not set! "
+                        "Please ensure it is present for all "
+                        "entries in the repo-list."
+                    )
                 owner = repo[REPO_OWNER_KEY]
                 if owner is None or len(owner) == 0:
-                    raise Exception("Repository owner is not set! " +
-                                    "Please ensure it is present for all "\
-                                    "entries in the repo-list.")
+                    raise Exception(
+                        "Repository owner is not set! "
+                        + "Please ensure it is present for all "
+                        "entries in the repo-list."
+                    )
                 repo_list.append(GitHubRepo(name=name, owner=owner, html_url=""))
 
             if len(repo_list) > 0:
@@ -135,62 +143,68 @@ def read_config():
                 gitlab_projects = projects
                 gitlab_api = GitLabApi(git_url, git_token)
             else:
-                raise Exception("No GitHub repositories or GitLab projects found in the config!")
+                raise Exception(
+                    "No GitHub repositories or GitLab projects found in the config!"
+                )
     except FileNotFoundError as file_not_found_err:
-        print("config.json not found! Please create it. See: config_template.json "\
-              "for a starting point")
+        print(
+            "config.json not found! Please create it. See: config_template.json "
+            "for a starting point"
+        )
         raise file_not_found_err
 
-def do_review(pull: GitLabMergeRequest | GitHubPr, code_changes: str,
-              model: Optional[str] = None) -> str:
+
+def do_review(
+    pull: GitLabMergeRequest | GitHubPr,
+    code_changes: str,
+    comments_as_chat_history: list,
+    model: Optional[str] = None,
+) -> str:
     """Sends the git diff to Ollama for review, returns the review text."""
-    prompt = textwrap.dedent("You are a senior software engineer. Review this open "\
-                              f"pull request titled \"{pull.title}\". Point out "\
-                              "potential bugs, style issues, and improvements. "\
-                              "You do not need to summarize the changes. "\
-                              "Include example code in your feedback.\n"\
-                              f"{code_changes}")
+    prompt = textwrap.dedent(
+        "You are a senior software engineer. Review this open "
+        f'pull request titled "{pull.title}". A review was'
+        "requested in this comment {review_request_comment}."
+        "Point out potential bugs, style issues, and improvements. "
+        "You do not need to summarize the changes. "
+        "Include example code in your feedback.\n"
+        f"{code_changes}"
+    )
+    messages = comments_as_chat_history + [{"role": "system", "content": prompt}]
 
     print("\n")
     print(f"Sending pull request {pull.title} to Ollama for review...")
     review = ollama_client.chat(
         model=model if model is not None else ollama_default_model,
-        messages=[{'role': 'user', 'content': prompt}],
+        messages=messages,
         stream=False,
     )
     print("\n--- Ollama Review ---")
     print(review)
     return review.message.content
 
+
 def create_description_of_changes(
-        file: GitHubChangedFile, changed_file_text: str
+    file: GitHubChangedFile, changed_file_text: str
 ) -> str:
     """Creates a description of all changes in changed_files_dict."""
-    return f"File name:\n{file.filename}\n"\
-            f"The proposed code changes:\n{changed_file_text}\n"\
-
-def do_review_with_full_file(pr: GitHubPr):
-    """Collects diff and original file for review context"""
-    changed_files = github_api.get_changed_files(pr)
-    description_of_changes_list = []
-    for changed_file in changed_files:
-        changed_file_text = github_api.get_changed_file_whole_contents(changed_file)
-        description_of_changes = create_description_of_changes(changed_file, changed_file_text)
-        description_of_changes_list.append(description_of_changes)
-    code_changes_prompt_text = "\n".join(description_of_changes_list)
-    return do_review(pr, code_changes_prompt_text)
+    return (
+        f"File name:\n{file.filename}\n"
+        f"The proposed code changes:\n{changed_file_text}\n"
+    )
 
 def get_requested_model(text: str) -> Optional[str]:
     """
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
     """
-    pattern = r'\b(use|using)\s+([a-zA-Z0-9\-\:\.]+)'
+    pattern = r"\b(use|using)\s+([a-zA-Z0-9\-\:\.]+)"
     match = re.search(pattern, text, flags=re.IGNORECASE)
 
     if match and len(match.groups()) == 2:
         return match.group(2)
     return None
+
 
 def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     """Checks comments on pull requests and requests Ollama for code reviews"""
@@ -198,12 +212,13 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
     for pr in pulls:
         comments = api.get_comments(pr)
         if comments:
-            print("Comments:")
             review_requested = False
-            latest_comment_text = ''
+            latest_comment_text = ""
+            comments_as_chat_history = []
             for c in comments:
-                comment_username = c.user.login if isinstance(c, GitHubComment)\
-                    else c.author.username
+                comment_username = (
+                    c.user.login if isinstance(c, GitHubComment) else c.author.username
+                )
                 comment_body = c.body
                 print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
@@ -211,23 +226,32 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                 elif f"@{git_username}" in comment_body:
                     review_requested = True
                     latest_comment_text = comment_body
+                comments_as_chat_history.append({"role": "user" if review_requested else "assistant", "content": f"@{comment_username}: {comment_body}"})
             if review_requested:
                 model = get_requested_model(latest_comment_text)
                 print(f"Using model {model}")
                 if model is not None and model not in allowed_models:
-                    api.post_comment(pr, f"{model} is not an allowed model. "\
-                                     "Please use on of the following models: "\
-                                        f"{', '.join(allowed_models)}.")
+                    api.post_comment(
+                        pr,
+                        f"{model} is not an allowed model. "
+                        "Please use on of the following models: "
+                        f"{', '.join(allowed_models)}.",
+                    )
                     continue
                 diff = api.get_diff(pr)
-                prompt_text = f"Git diff\n{diff}"
-                review_content = do_review(pr, prompt_text, model)
+                prompt_text = (
+                    f"Review requested by @{git_username}\n\n Git diff\n{diff}"
+                )
+                review_content = do_review(pr, prompt_text, comments_as_chat_history, model)
                 api.post_comment(pr, review_content)
             else:
-                print(f"\nNot doing a review. No @{git_username} comment found " +
-                      f"or the last comment was posted by {git_username}.")
+                print(
+                    f"\nNot doing a review. No @{git_username} comment found "
+                    + f"or the last comment was posted by {git_username}."
+                )
         else:
             print("No GitHub comments.")
+
 
 def get_pull_requests():
     """Gets all open pull/merge requests for the configured repositories"""
@@ -238,11 +262,12 @@ def get_pull_requests():
         return api.get_open_prs(github_repos)
     raise Exception(f"Unsupported API: {api}")
 
+
 # Pylint added because the loop just prints any error
 # Then waits for longer than normal to loop again
-#pylint: disable=bare-except
+# pylint: disable=bare-except
 def main():
-    """Reads in the config then runs the loop to check specified repos 
+    """Reads in the config then runs the loop to check specified repos
     for pull requests then post code reviews from Ollama"""
     try:
         read_config()
@@ -260,7 +285,8 @@ def main():
         except Exception as e:
             print(f"ERROR {e}")
             # Wait 5 minutes
-            time.sleep(60*5)
+            time.sleep(60 * 5)
+
 
 if __name__ == "__main__":
     main()
