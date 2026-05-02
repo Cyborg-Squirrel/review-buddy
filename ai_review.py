@@ -226,7 +226,10 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                 elif f"@{git_username}" in comment_body:
                     review_requested = True
                     latest_comment_text = comment_body
-                comments_as_chat_history.append({"role": "user" if review_requested else "assistant", "content": f"@{comment_username}: {comment_body}"})
+                comments_as_chat_history.append({
+                    "role": "user" if review_requested else "assistant",
+                    "content": f"@{comment_username}: {comment_body}"
+                })
             if review_requested:
                 model = get_requested_model(latest_comment_text)
                 print(f"Using model {model}")
