@@ -205,7 +205,7 @@ def do_review(
         "Point out potential bugs, style issues, and improvements. "
         "You can fetch additional lines of code from the pull request branch "
         "or from the target branch using the get_file_lines tool. "
-        "Use the get_file_lines tool if you need to see more context."
+        "Use the get_file_lines tool if you need to see more context. "
         "You do not need to summarize the changes. "
         "Include example code in your feedback.\n"
         f"{code_changes}"
