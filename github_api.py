@@ -168,6 +168,13 @@ class GitHubApi:
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(request_url, raw_headers)
 
+    def get_file_at_ref(self, repo_html_url: str, file_path: str, ref: str) -> str:
+        """Gets the contents of any file at a specific branch ref or SHA"""
+        request_url = f"{repo_html_url}/raw/{ref}/{file_path}"
+        raw_headers = self.__get_json_response_headers()
+        raw_headers.pop("Accept")
+        return self.__do_json_api_request_raw_response(request_url, raw_headers)
+
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""
         comments_url = pr.comments_url
