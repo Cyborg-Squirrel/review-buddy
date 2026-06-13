@@ -69,7 +69,7 @@ def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
     try:
-        with open("get_file_lines_tool.json", "r") as f:
+        with open("get_file_lines_tool.json", "r", encoding="utf-8") as f:
             global tool
             tool = Tool.model_validate(json.load(f))
         with open("config.json", "r", encoding="utf-8") as file:
@@ -297,7 +297,8 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                     c.user.login if isinstance(c, GitHubComment) else c.author.username
                 )
                 comment_body = c.body
-                print(f"- {comment_username}: {comment_body[:80]}")
+                # For debug purposes only, very verbose
+                # print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
                     review_requested = False
                 elif f"@{git_username}" in comment_body:
