@@ -19,7 +19,7 @@ import textwrap
 import time
 from typing import Optional
 
-from ollama import Client
+from ollama import Client, Tool
 
 from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
                         GitHubRepo)
@@ -52,43 +52,7 @@ ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
 
 MAX_TOOL_ITERATIONS = 10
-
-GET_FILE_LINES_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_file_lines",
-        "description": (
-            "Fetch a range of lines from a file in the pull request. "
-            "Use this to view additional context around changed code."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "File path relative to the repository root",
-                },
-                "start_line": {
-                    "type": "integer",
-                    "description": "First line to retrieve (1-indexed)",
-                },
-                "end_line": {
-                    "type": "integer",
-                    "description": "Last line to retrieve (1-indexed, inclusive)",
-                },
-                "branch": {
-                    "type": "string",
-                    "enum": ["pr", "target"],
-                    "description": (
-                        "'pr' to read from the PR/source branch, "
-                        "'target' to read from the base/target branch"
-                    ),
-                },
-            },
-            "required": ["filename", "start_line", "end_line", "branch"],
-        },
-    },
-}
+tool: Tool
 
 
 def get_api() -> GitHubApi | GitLabApi:
@@ -105,6 +69,9 @@ def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
     try:
+        with open("get_file_lines_tool.json", "r") as f:
+            global tool
+            tool = Tool.model_validate(json.load(f))
         with open("config.json", "r", encoding="utf-8") as file:
             data = json.load(file)
 
@@ -244,6 +211,9 @@ def do_review(
         f'pull request titled "{pull.title}". A review was'
         "requested in this comment {review_request_comment}."
         "Point out potential bugs, style issues, and improvements. "
+        "You can fetch additional lines of code from the pull request branch "
+        "or from the target branch using the get_file_lines tool. "
+        "Use the get_file_lines tool if you need to see more context."
         "You do not need to summarize the changes. "
         "Include example code in your feedback.\n"
         f"{code_changes}"
@@ -257,13 +227,13 @@ def do_review(
         response = ollama_client.chat(
             model=active_model,
             messages=messages,
-            tools=[GET_FILE_LINES_TOOL],
+            tools=[tool],
             stream=False,
         )
 
         if not response.message.tool_calls:
             print("\n--- Ollama Review ---")
-            print(response)
+            print(str(response)[:280])
             return response.message.content
 
         messages.append(response.message)
@@ -305,10 +275,10 @@ def get_requested_model(text: str) -> Optional[str]:
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
     """
-    pattern = r"\b(?:use|using)(?:\s+model)?\s+([a-zA-Z0-9\-\:\.]+)"
+    pattern = r"\b(?:use|using)\s+model\s+([a-zA-Z0-9\-\:\.]+)"
     match = re.search(pattern, text, flags=re.IGNORECASE)
 
-    if match and len(match.groups()) == 1:
+    if match:
         return match.group(1)
     return None
 
@@ -344,7 +314,7 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                     api.post_comment(
                         pr,
                         f"{model} is not an allowed model. "
-                        "Please use on of the following models: "
+                        "Please use one of the following models: "
                         f"{', '.join(allowed_models)}.",
                     )
                     continue
