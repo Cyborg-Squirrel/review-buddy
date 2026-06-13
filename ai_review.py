@@ -176,23 +176,15 @@ def execute_get_file_lines(
             else:
                 ref = pull.base.ref
                 repo_url = pull.base.repo.html_url
-            contents = api.get_file_at_ref(repo_url, filename, ref)
+            selected = api.get_file_lines(repo_url, filename, ref, start_line, end_line)
         elif isinstance(api, GitLabApi) and isinstance(pull, GitLabMergeRequest):
             ref = pull.source_branch if branch == "pr" else pull.target_branch
-            contents = api.get_raw_file_contents(pull.project_id, filename, ref)
+            selected = api.get_file_lines(pull.project_id, filename, ref, start_line, end_line)
         else:
             return "Error: API and PR type mismatch"
 
-        lines = contents.splitlines()
-        start = max(0, start_line - 1)
-        end = min(len(lines), end_line)
-        selected = lines[start:end]
-
         if not selected:
-            return (
-                f"No lines found in range {start_line}-{end_line} "
-                f"for {filename} (file has {len(lines)} lines)"
-            )
+            return f"No lines found in range {start_line}-{end_line} for {filename}"
 
         return "\n".join(f"{i}: {line}" for i, line in enumerate(selected, start=start_line))
     except Exception as e:
