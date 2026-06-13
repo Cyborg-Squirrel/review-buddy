@@ -14,6 +14,8 @@ from typing import Optional
 import requests
 from dataclasses_json import Undefined, dataclass_json
 
+from api_utils import stream_file_lines
+
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -167,6 +169,23 @@ class GitHubApi:
         raw_headers = self.__get_json_response_headers()
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(request_url, raw_headers)
+
+    def get_file_at_ref(self, repo_html_url: str, file_path: str, ref: str) -> str:
+        """Gets the contents of any file at a specific branch ref or SHA"""
+        request_url = f"{repo_html_url}/raw/{ref}/{file_path}"
+        raw_headers = self.__get_json_response_headers()
+        raw_headers.pop("Accept")
+        return self.__do_json_api_request_raw_response(request_url, raw_headers)
+
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def get_file_lines(
+        self, repo_html_url: str, file_path: str, ref: str, start_line: int, end_line: int
+    ) -> list[str]:
+        """Streams a file and returns only the requested line range, avoiding full file load."""
+        request_url = f"{repo_html_url}/raw/{ref}/{file_path}"
+        raw_headers = self.__get_json_response_headers()
+        raw_headers.pop("Accept")
+        return stream_file_lines(request_url, raw_headers, {}, start_line, end_line)
 
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""

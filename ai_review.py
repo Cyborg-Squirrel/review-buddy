@@ -19,7 +19,7 @@ import textwrap
 import time
 from typing import Optional
 
-from ollama import Client
+from ollama import Client, Tool
 
 from github_api import (GitHubApi, GitHubChangedFile, GitHubComment, GitHubPr,
                         GitHubRepo)
@@ -37,7 +37,7 @@ GIT_TOKEN_KEY = "token"
 GITHUB_USERNAME_KEY = "username"
 OLLAMA_URL_KEY = "ollama-url"
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
-AI_MODEL_NAME_KEY = "ai-model"
+PREFERRED_MODEL_NAME_KEY = "preferred-model"
 DEFAULT_AI_MODEL = "codellama"
 
 ollama_client: Client
@@ -50,7 +50,9 @@ github_repos: list[GitHubRepo]
 
 ALLOWED_MODELS_KEY = "allowed-models"
 allowed_models = []
-# ------------------------------
+
+MAX_TOOL_ITERATIONS = 10
+tool: Tool
 
 
 def get_api() -> GitHubApi | GitLabApi:
@@ -67,6 +69,9 @@ def read_config():
     """Reads the config in from config.json"""
     print("Reading config from config.json")
     try:
+        with open("get_file_lines_tool.json", "r", encoding="utf-8") as f:
+            global tool
+            tool = Tool.model_validate(json.load(f))
         with open("config.json", "r", encoding="utf-8") as file:
             data = json.load(file)
 
@@ -85,8 +90,8 @@ def read_config():
             print(f"Ollama url: {ollama_url}")
 
             model_name = DEFAULT_AI_MODEL
-            if AI_MODEL_NAME_KEY in data and len(data[AI_MODEL_NAME_KEY]) > 0:
-                model_name = data[AI_MODEL_NAME_KEY]
+            if PREFERRED_MODEL_NAME_KEY in data and len(data[PREFERRED_MODEL_NAME_KEY]) > 0:
+                model_name = data[PREFERRED_MODEL_NAME_KEY]
 
             global ollama_client, ollama_default_model
             ollama_client = Client(host=ollama_url)
@@ -154,6 +159,38 @@ def read_config():
         raise file_not_found_err
 
 
+def execute_get_file_lines(
+    filename: str,
+    start_line: int,
+    end_line: int,
+    branch: str,
+    pull: GitLabMergeRequest | GitHubPr,
+) -> str:
+    """Executes the get_file_lines tool and returns the result as a string."""
+    api = get_api()
+    try:
+        if isinstance(api, GitHubApi) and isinstance(pull, GitHubPr):
+            if branch == "pr":
+                ref = pull.head.ref
+                repo_url = pull.head.repo.html_url
+            else:
+                ref = pull.base.ref
+                repo_url = pull.base.repo.html_url
+            selected = api.get_file_lines(repo_url, filename, ref, start_line, end_line)
+        elif isinstance(api, GitLabApi) and isinstance(pull, GitLabMergeRequest):
+            ref = pull.source_branch if branch == "pr" else pull.target_branch
+            selected = api.get_file_lines(pull.project_id, filename, ref, start_line, end_line)
+        else:
+            return "Error: API and PR type mismatch"
+
+        if not selected:
+            return f"No lines found in range {start_line}-{end_line} for {filename}"
+
+        return "\n".join(f"{i}: {line}" for i, line in enumerate(selected, start=start_line))
+    except Exception as e:
+        return f"Error fetching {filename}: {e}"
+
+
 def do_review(
     pull: GitLabMergeRequest | GitHubPr,
     code_changes: str,
@@ -166,22 +203,55 @@ def do_review(
         f'pull request titled "{pull.title}". A review was'
         "requested in this comment {review_request_comment}."
         "Point out potential bugs, style issues, and improvements. "
+        "You can fetch additional lines of code from the pull request branch "
+        "or from the target branch using the get_file_lines tool. "
+        "Use the get_file_lines tool if you need to see more context. "
         "You do not need to summarize the changes. "
         "Include example code in your feedback.\n"
         f"{code_changes}"
     )
     messages = comments_as_chat_history + [{"role": "system", "content": prompt}]
+    active_model = model if model is not None else ollama_default_model
 
-    print("\n")
-    print(f"Sending pull request {pull.title} to Ollama for review...")
-    review = ollama_client.chat(
-        model=model if model is not None else ollama_default_model,
-        messages=messages,
-        stream=False,
-    )
-    print("\n--- Ollama Review ---")
-    print(review)
-    return review.message.content
+    print(f"\nSending pull request {pull.title} to Ollama for review...")
+
+    for _ in range(MAX_TOOL_ITERATIONS):
+        response = ollama_client.chat(
+            model=active_model,
+            messages=messages,
+            tools=[tool],
+            stream=False,
+        )
+
+        if not response.message.tool_calls:
+            print("\n--- Ollama Review ---")
+            print(str(response)[:280])
+            return response.message.content
+
+        messages.append(response.message)
+        for tool_call in response.message.tool_calls:
+            tool_name = tool_call.function.name
+            if tool_name == "get_file_lines":
+                args = tool_call.function.arguments
+                print(
+                    f"Tool call: get_file_lines("
+                    f"{args['filename']}, "
+                    f"{args['start_line']}-{args['end_line']}, "
+                    f"{args['branch']})"
+                )
+                result = execute_get_file_lines(
+                    args["filename"],
+                    args["start_line"],
+                    args["end_line"],
+                    args["branch"],
+                    pull,
+                )
+            else:
+                result = f"Unknown tool: {tool_name}"
+            messages.append({"role": "tool", "tool_name": tool_name, "content": result})
+
+    print("Warning: reached max tool iterations without a final response")
+    return messages[-1].get("content", "")
 
 
 def create_description_of_changes(
@@ -198,11 +268,11 @@ def get_requested_model(text: str) -> Optional[str]:
     Return the word that immediately follows the first occurrence of
     "use" or "using" in *text*.
     """
-    pattern = r"\b(use|using)\s+([a-zA-Z0-9\-\:\.]+)"
+    pattern = r"\b(?:use|using)\s+model\s+([a-zA-Z0-9\-\:\.]+)"
     match = re.search(pattern, text, flags=re.IGNORECASE)
 
-    if match and len(match.groups()) == 2:
-        return match.group(2)
+    if match:
+        return match.group(1)
     return None
 
 
@@ -220,7 +290,8 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                     c.user.login if isinstance(c, GitHubComment) else c.author.username
                 )
                 comment_body = c.body
-                print(f"- {comment_username}: {comment_body[:80]}")
+                # For debug purposes only, very verbose
+                # print(f"- {comment_username}: {comment_body[:80]}")
                 if git_username in comment_username:
                     review_requested = False
                 elif f"@{git_username}" in comment_body:
@@ -232,12 +303,12 @@ def process_pull_requests(pulls: list[GitLabMergeRequest] | list[GitHubPr]):
                 })
             if review_requested:
                 model = get_requested_model(latest_comment_text)
-                print(f"Using model {model}")
                 if model is not None and model not in allowed_models:
+                    print(f"Using model {model}")
                     api.post_comment(
                         pr,
                         f"{model} is not an allowed model. "
-                        "Please use on of the following models: "
+                        "Please use one of the following models: "
                         f"{', '.join(allowed_models)}.",
                     )
                     continue
