@@ -238,7 +238,8 @@ def do_review(
 
         messages.append(response.message)
         for tool_call in response.message.tool_calls:
-            if tool_call.function.name == "get_file_lines":
+            tool_name = tool_call.function.name
+            if tool_name == "get_file_lines":
                 args = tool_call.function.arguments
                 print(
                     f"Tool call: get_file_lines("
@@ -254,8 +255,8 @@ def do_review(
                     pull,
                 )
             else:
-                result = f"Unknown tool: {tool_call.function.name}"
-            messages.append({"role": "tool", "content": result})
+                result = f"Unknown tool: {tool_name}"
+            messages.append({"role": "tool", "tool_name": tool_name, "content": result})
 
     print("Warning: reached max tool iterations without a final response")
     return messages[-1].get("content", "")
