@@ -14,6 +14,8 @@ from typing import Optional
 import requests
 from dataclasses_json import Undefined, dataclass_json
 
+from api_utils import stream_file_lines
+
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -175,6 +177,7 @@ class GitHubApi:
         raw_headers.pop("Accept")
         return self.__do_json_api_request_raw_response(request_url, raw_headers)
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def get_file_lines(
         self, repo_html_url: str, file_path: str, ref: str, start_line: int, end_line: int
     ) -> list[str]:
@@ -182,15 +185,7 @@ class GitHubApi:
         request_url = f"{repo_html_url}/raw/{ref}/{file_path}"
         raw_headers = self.__get_json_response_headers()
         raw_headers.pop("Accept")
-        lines = []
-        with requests.get(request_url, headers=raw_headers, stream=True, timeout=30) as response:
-            response.raise_for_status()
-            for i, line in enumerate(response.iter_lines(decode_unicode=True), start=1):
-                if i >= start_line:
-                    lines.append(line)
-                if i >= end_line:
-                    break
-        return lines
+        return stream_file_lines(request_url, raw_headers, {}, start_line, end_line)
 
     def post_comment(self, pr: GitHubPr, content: str):
         """Posts a comment to the specified pull request"""

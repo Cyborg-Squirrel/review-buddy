@@ -13,6 +13,8 @@ from dataclasses import dataclass
 import requests
 from dataclasses_json import Undefined, dataclass_json
 
+from api_utils import stream_file_lines
+
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
@@ -115,23 +117,13 @@ class GitLabApi:
         response.raise_for_status()
         return response.text
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def get_file_lines(
         self, project_id, file_path: str, ref: str, start_line: int, end_line: int
     ) -> list[str]:
         """Streams a file and returns only the requested line range, avoiding full file load."""
         url = f"{self.gitlab_url}/api/v5/projects/{project_id}/repository/files/{file_path}/raw"
-        params = {"ref": ref}
-        lines = []
-        with requests.get(
-            url, headers=self.headers, params=params, stream=True, timeout=30
-        ) as response:
-            response.raise_for_status()
-            for i, line in enumerate(response.iter_lines(decode_unicode=True), start=1):
-                if i >= start_line:
-                    lines.append(line)
-                if i >= end_line:
-                    break
-        return lines
+        return stream_file_lines(url, self.headers, {"ref": ref}, start_line, end_line)
 
     def post_comment(self, mr: GitLabMergeRequest, content: str):
         """Posts a comment to a merge request"""
